@@ -1,12 +1,19 @@
+## external libraries
 import pyqrcode
+import zlib
+##
 
+## python stdlib
 import base64
 import argparse
 import hashlib
 import math
 import os
-import chardet
-import zlib        
+import Tkinter as tk
+from glob import glob
+import sys
+import webbrowser as web
+##
 
 # Monero donations to nasaWelder (babysitting money, so I can code! single parent)
 # 48Zuamrb7P5NiBHrSN4ua3JXRZyPt6XTzWLawzK9QKjTVfsc2bUr1UmYJ44sisanuCJzjBAccozckVuTLnHG24ce42Qyak6
@@ -41,7 +48,7 @@ def send(args):
     htmlfile = open(os.path.join(actualOutDir,"all.html"), "w")
     htmlfile.write("<!DOCTYPE html>\n<html>\n<body>\n") 
     htmlfile.write('<table cellpadding="35">\n<tr><th>qrcode</th><th>file</th></tr>\n')
-    print("Encoding:\t",chardet.detect(open(bitPath,"rb").read()))
+
     print("\tfile size:\t\t%s bytes" % fsize)
     pages = math.ceil(float(fsize) / float(PAGE_SIZE))
     
@@ -66,7 +73,7 @@ def send(args):
         heading = args.msgType + "," + str(checksum) + "," + str(i) + "/" + str(int(numQR)) + ":"
         chunk = f.read(PAGE_SIZE)
 
-        #print("Encoding:\t",chardet.detect(chunk))
+
         if not chunk:
           numQR = i-1
           print("\n\tEnd of file reached, %s QR codes"%numQR)
@@ -153,6 +160,25 @@ def stitch(args):
     print("\n\t%s crc32:\t%s" %(stitchPath,crc(stitchPath)))
 
 
+
+def displayLoop(sendDir="signed_monero_tx.QRbatch"):
+    web.open_new(os.path.realpath(sendDir) + "/loop.html")
+    imageNames = glob(os.path.realpath(sendDir) + "/*.svg")
+    print(imageNames)
+    i = 0
+    sendImages = [tk.PhotoImage(file=sendDir + img) for img in imageNames]
+    
+    
+def main():
+    
+    root = tk.Tk()
+
+    displayLoop(sendDir="signed_monero_tx.QRbatch")
+    root.mainloop()
+
+
+
+
 parser = argparse.ArgumentParser(description='Generate bulk qr code')
 subparsers = parser.add_subparsers()
 sendParser = subparsers.add_parser('send')
@@ -173,9 +199,13 @@ stitchParser.add_argument('infile',
                     help='file to be converted to QR code batch')
 stitchParser.add_argument('--outDir', default="./",
                     help='dir to place stitched together file')                  
-stitchParser.set_defaults(func=stitch) 
+stitchParser.set_defaults(func=stitch)
+
+
     
 if __name__ == "__main__":
+    displayLoop(sendDir="signed_monero_tx.QRbatch")
+    sys.exit(0)
     args = parser.parse_args()
     for arg in vars(args):
         print("\t%s\t\t%s"% (arg, getattr(args, arg)))
