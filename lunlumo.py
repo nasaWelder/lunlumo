@@ -120,8 +120,8 @@ def send(args):
 <div> src name: %(src)s <div>
 <div> src crc32: %(check)s <div>
 
-<table cellpadding="5">\n<tr><th></th><th></th></tr>
-<td><img src="%(outDir)s/%(firstImg)s" alt="ERROR in QR code processing" width="500" height="500" id="rotator"></td><td><div id="theName"></div></td><td><div id="recvStatus"></div></td></table>
+<table cellpadding="5">\n<tr><th></th><th></th><th></th></tr>
+<td><img src="%(outDir)s/%(firstImg)s" alt="ERROR in QR code processing" width="500" height="500" id="rotator"></td><td><div id="theName">X of X</div></td><td><div><iframe height="100px" src="../recvStatus.htm" name="recvStatusName" id="recvStatus"></iframe></div></td></table>
 <p>Monero donations to nasaWelder (babysitting money, so I can code!)</p>
 <p>48Zuamrb7P5NiBHrSN4ua3JXRZyPt6XTzWLawzK9QKjTVfsc2bUr1UmYJ44sisanuCJzjBAccozckVuTLnHG24ce42Qyak6</p>
 
@@ -143,9 +143,9 @@ function() {
     setInterval(function(){                           //interval changer
         rotator.src = dir + base + num+ last + '.svg';               //change picture
         rotator.alt = base + num+ last + '.svg';
-        document.getElementById('theName').innerHTML = '                 ' +num + ' of ' + len  ;
+        document.getElementById('theName').innerHTML = '                 ' +num + ' of ' + len + '               ' ;
 
-        //document.getElementById('recvStatus').innerHTML = 'fuck'  ;    // idk how to display text from file...
+        document.getElementById('recvStatus').src = document.getElementById('recvStatus').src;    // idk how to display text from file...
         num = (num === len) ? 1 : ++num;              //reset if last image reached
     }, delayInSeconds * 1000);
 }());
