@@ -1,3 +1,4 @@
 *.txt
 *monero_tx
 *.pyc
+*.QRbatch/

@@ -15,7 +15,7 @@ import sys
 import webbrowser as web
 ##
 
-# Monero donations to nasaWelder (babysitting money, so I can code! single parent)
+# Monero donations to nasaWelder (babysitting money, so I can code!)
 # 48Zuamrb7P5NiBHrSN4ua3JXRZyPt6XTzWLawzK9QKjTVfsc2bUr1UmYJ44sisanuCJzjBAccozckVuTLnHG24ce42Qyak6
 def crc(fileName):
     prev = 0
@@ -33,27 +33,27 @@ def send(args):
     PAGE_SIZE = args.bytes
 
     actualOutDir =  os.path.realpath(os.path.join(args.outDir,os.path.basename(args.infile) + ".QRbatch"))
-    os.makedirs(actualOutDir) 
-    
+    os.makedirs(actualOutDir)
+
     bitPath = os.path.join(actualOutDir,'bits')
-    
+
     with open(args.infile, "rb") as source:
         with open(bitPath, 'wb') as dest:
             dest.write(base64.b64encode(source.read()))
-    
+
     checksum = crc(args.infile)
     print("\n\t%s crc32:\t%s" %(args.infile,checksum))
     print("\n\t%s crc32:\t%s" %(bitPath,crc(bitPath)))
     fsize = os.path.getsize(args.infile)
     htmlfile = open(os.path.join(actualOutDir,"all.html"), "w")
-    htmlfile.write("<!DOCTYPE html>\n<html>\n<body>\n") 
+    htmlfile.write("<!DOCTYPE html>\n<html>\n<body>\n")
     htmlfile.write('<table cellpadding="35">\n<tr><th>qrcode</th><th>file</th></tr>\n')
 
     print("\tfile size:\t\t%s bytes" % fsize)
     pages = math.ceil(float(fsize) / float(PAGE_SIZE))
-    
 
-    
+
+
     #with open(args.infile,"rb") as f:
     with open(bitPath, 'rb') as f:
       k = 1
@@ -87,10 +87,10 @@ def send(args):
         qrPage = pyqrcode.create(page,error="L")
         #print(qrPage.text())
         pagePath = os.path.join(actualOutDir,pageName)
-        saved = qrPage.svg(pagePath)        
+        saved = qrPage.svg(pagePath)
         i+=1
     htmlfile = open(os.path.join(actualOutDir,"all.html"), "w")
-    htmlfile.write("<!DOCTYPE html>\n<html>\n<body>\n") 
+    htmlfile.write("<!DOCTYPE html>\n<html>\n<body>\n")
     htmlfile.write('<table cellpadding="35">\n<tr><th>qrcode</th><th>file</th></tr>\n')
     for filename in sorted(os.listdir(actualOutDir)):
         #print("filename: ", filename)
@@ -100,12 +100,12 @@ def send(args):
             htmlfile.write('<tr>\n')
             htmlfile.write('<td><img src = "' + os.path.join(actualOutDir,f2) + '" alt ="cfg" align = "left" height="500" width="500"></td><td>%s</td>\n' % os.path.join(actualOutDir,f2))
             htmlfile.write('</tr>\n')
-            
-    
+
+
     htmlfile.write('</table>\n')
     htmlfile.write("</body>\n</html>\n")
     htmlfile.close()
-    
+
     loopfile = open(os.path.join(actualOutDir,"loop.html"), "w")
     base = os.path.basename(args.infile) + "_" + str(checksum) + "_"
     last = "of" + str(numQR) + ".svg"
@@ -121,13 +121,15 @@ def send(args):
 <div> src crc32: %(check)s <div>
 
 <table cellpadding="5">\n<tr><th></th><th></th></tr>
-<td><img src="%(outDir)s/%(firstImg)s" alt="ERROR in QR code processing" width="500" height="500" id="rotator"></td><td><div id="theName"></div></td></table>
-<p>Monero donations to nasaWelder (babysitting money, so I can code! single parent)</p>
+<td><img src="%(outDir)s/%(firstImg)s" alt="ERROR in QR code processing" width="500" height="500" id="rotator"></td><td><div id="theName"></div></td><td><div id="recvStatus"></div></td></table>
+<p>Monero donations to nasaWelder (babysitting money, so I can code!)</p>
 <p>48Zuamrb7P5NiBHrSN4ua3JXRZyPt6XTzWLawzK9QKjTVfsc2bUr1UmYJ44sisanuCJzjBAccozckVuTLnHG24ce42Qyak6</p>
 
 <script type="text/javascript">
-(function() {
-    
+(
+
+function() {
+
     var rotator = document.getElementById('rotator'), //get the element
         dir = '%(outDir)s',                              //images folder
         base = '%(base)s',
@@ -135,10 +137,15 @@ def send(args):
         delayInSeconds = %(delay)s,                           //delay in seconds
         num = 1,                                      //start number
         len = %(N)s;                                      //limit
+
+    //var rfile = './recvStatus.txt';
+
     setInterval(function(){                           //interval changer
         rotator.src = dir + base + num+ last + '.svg';               //change picture
         rotator.alt = base + num+ last + '.svg';
         document.getElementById('theName').innerHTML = '                 ' +num + ' of ' + len  ;
+
+        //document.getElementById('recvStatus').innerHTML = 'fuck'  ;    // idk how to display text from file...
         num = (num === len) ? 1 : ++num;              //reset if last image reached
     }, delayInSeconds * 1000);
 }());
@@ -147,7 +154,8 @@ def send(args):
 </html>
 """ % {"outDir" : actualOutDir + "/" ,"firstImg": firstImg,"N" : numQR,"base" :base,"last":last.replace(".svg",""),"src": os.path.basename(args.infile),"check":checksum, "delay": args.delay})
     loopfile.close()
-    
+    displayLoop(sendDir=actualOutDir)
+
 def stitch(args):
     actualOutDir =  os.path.realpath(os.path.join(args.outDir,os.path.basename(args.infile) + ".QRstitched"))
     os.makedirs(actualOutDir)
@@ -164,13 +172,13 @@ def stitch(args):
 def displayLoop(sendDir="signed_monero_tx.QRbatch"):
     web.open_new(os.path.realpath(sendDir) + "/loop.html")
     imageNames = glob(os.path.realpath(sendDir) + "/*.svg")
-    print(imageNames)
+    #print(imageNames)
     i = 0
-    sendImages = [tk.PhotoImage(file=sendDir + img) for img in imageNames]
-    
-    
+    #sendImages = [tk.PhotoImage(file=sendDir + img) for img in imageNames]
+
+
 def main():
-    
+
     root = tk.Tk()
 
     displayLoop(sendDir="signed_monero_tx.QRbatch")
@@ -193,20 +201,19 @@ sendParser.add_argument('--bytes', default=1000, choices=xrange(50, 2500), type=
 sendParser.add_argument('--outDir', default="./",
                     help='dir to place QR code batch')
 sendParser.set_defaults(func=send)
-                    
+
 stitchParser = subparsers.add_parser("stitch")
 stitchParser.add_argument('infile',
                     help='file to be converted to QR code batch')
 stitchParser.add_argument('--outDir', default="./",
-                    help='dir to place stitched together file')                  
+                    help='dir to place stitched together file')
 stitchParser.set_defaults(func=stitch)
 
 
-    
+
 if __name__ == "__main__":
-    displayLoop(sendDir="signed_monero_tx.QRbatch")
-    sys.exit(0)
     args = parser.parse_args()
     for arg in vars(args):
         print("\t%s\t\t%s"% (arg, getattr(args, arg)))
     args.func(args)
+
