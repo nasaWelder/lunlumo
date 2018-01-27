@@ -162,7 +162,13 @@ def stitch(args):
     stitchPath = os.path.join(actualOutDir,os.path.basename(args.infile) +".stitched")
     with open(args.infile, "rb") as source:
         with open(stitchPath, 'wb') as dest:
-            dest.write(base64.b64decode(source.read()))
+            data = source.read().strip()
+            print(len(data)%4)
+            missing_padding = len(data) % 4
+            if missing_padding != 0:
+                data += b'='* (4 - missing_padding)
+                print(len(data)%4)
+            dest.write(base64.b64decode(data))
 
     print("\n\t%s crc32:\t%s" %(args.infile,crc(args.infile)))
     print("\n\t%s crc32:\t%s" %(stitchPath,crc(stitchPath)))
