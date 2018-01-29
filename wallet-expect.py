@@ -24,6 +24,7 @@ class Wallet(object):
             raise Exception("Argument Error: Currently, this library does not automate wallet generation... maybe if you ask nicely we can add it")
         self.walletArgs.extend(["--wallet-file",walletFile])
 
+        self.rawPassword = password
         self.password = '"' + password + '"'
         self.walletArgs.extend(["--password",self.password])
 
@@ -38,9 +39,9 @@ class Wallet(object):
             pass   #start local daemon (will be annoying if not synced)
             self.daemonArg = None   #don't include in wallet start command
         elif daemonAddress:
-            self.daemonArg = ["--daemon-address",daemonAddress.split()[0]]  #split is to defeat sneaky attack
+            self.daemonArg = ["--daemon-address",daemonAddress.split()[0],"--trusted-daemon"]  #split is to defeat sneaky attack
         elif daemonHost:
-            self.daemonArg = ["--daemon-host",daemonHost.split()[0]]  #split is to defeat sneaky attack
+            self.daemonArg = ["--daemon-host",daemonHost.split()[0],"--trusted-daemon"]  #split is to defeat sneaky attack
 
         if cold:
             self.cold = True
@@ -69,7 +70,7 @@ class Wallet(object):
 
     def startWallet(self):
         self.cmdMonero = os.path.join(MONERO_DIR,"monero-wallet-cli")
-        print("self.cmdMonero: ",self.cmdMonero)
+        if self.testnet: print("self.cmdMonero: ",self.cmdMonero)
         self.child = pexpect.spawn(self.cmdMonero + ' ' + ''.join(arg + ' ' for arg in self.walletArgs))
         i = self.child.expect([pexpect.TIMEOUT, WALLET_SYNCED_PROMPT, WALLET_NODAEMON_PROMPT], timeout = self.TIMEOUT)
         if i == 0: # Timeout
@@ -91,6 +92,59 @@ class Wallet(object):
         print(self.child.after)
 
         self.stopWallet()
+
+    def transfer(self,destAddress, amount, priority = "unimportant", ):
+        tx_string = 'transfer %s %s %s' % (priority,destAddress,amount)
+        self.child.sendline(tx_string)
+
+    def walletCmd(self,cmd,autoConfirm = False):
+        self.ready = False
+        self.child.sendline(cmd)
+        i = self.child.expect([pexpect.TIMEOUT, WALLET_SYNCED_PROMPT, WALLET_NODAEMON_PROMPT,WALLET_PASSWORD_PROMPT], timeout = self.TIMEOUT)
+        if i == 0: # Timeout
+            self.haltAndCatchFire('TIMEOUT ERROR! Wallet did not return within TIMEOUT limit %s' % self.TIMEOUT)
+
+        elif i == 1: # WALLET_SYNCED_PROMPT
+            if self.cold:
+                self.haltAndCatchFire('ROGUE SYNC ERROR! Cold Wallet was asked for, but the wallet found a daemon! YOUR SEED COULD BE COMPROMISED!!')
+            else: # hot waller, expected (pun intended)
+                self.ready = True
+
+        elif i ==2: # WALLET_NODAEMON_PROMPT
+            if not self.cold:
+                self.haltAndCatchFire('No Sync Error: wallet returned without finding daemon')
+            else:
+                self.ready = True
+        elif i ==3:  #password Prompt
+            self.child.sendline(self.rawPassword)
+            i = self.child.expect([pexpect.TIMEOUT, WALLET_SYNCED_PROMPT, WALLET_NODAEMON_PROMPT,WALLET_ISOKAY_PROMPT], timeout = self.TIMEOUT)
+            if i == 0: # Timeout
+                self.haltAndCatchFire('TIMEOUT ERROR! Wallet did not return within TIMEOUT limit %s' % self.TIMEOUT)
+
+            elif i == 1: # WALLET_SYNCED_PROMPT
+                if self.cold:
+                    self.haltAndCatchFire('ROGUE SYNC ERROR! Cold Wallet was asked for, but the wallet found a daemon! YOUR SEED COULD BE COMPROMISED!!')
+                else: # hot waller, expected (pun intended)
+                    self.ready = True
+
+            elif i ==2: # WALLET_NODAEMON_PROMPT
+                if not self.cold:
+                    self.haltAndCatchFire('No Sync Error: wallet returned without finding daemon')
+                else:
+                    self.ready = True
+            elif i ==3:   # WALLET_ISOKAY_PROMPT
+                if self.getConfirmation(self.child.before,autoConfirm):
+                    self.ready = True
+
+        if not self.ready:
+            self.haltAndCatchFire("Automation Deadend: Wallet took us to somewhere we didn't plan")
+
+    def getConfirmation(self,context,autoConfirm):
+        return False
+
+
+
+
 
 
 if __name__ == "__main__":
