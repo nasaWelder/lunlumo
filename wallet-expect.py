@@ -90,17 +90,24 @@ class Wallet(object):
 
         print(self.child.before)
         print(self.child.after)
-
+        print("*"*80)
+        self.getViewOnly()
         self.stopWallet()
 
     def transfer(self,destAddress, amount, priority = "unimportant", ):
         tx_string = 'transfer %s %s %s' % (priority,destAddress,amount)
         self.child.sendline(tx_string)
 
+    def getViewOnly(self):
+        viewSecret= self.walletCmd("viewkey").split()[1]
+        thisWalletAddress = self.walletCmd("address").split()[1]
+        return viewSecret, thisWalletAddress
+
+
     def walletCmd(self,cmd,autoConfirm = False):
         self.ready = False
         self.child.sendline(cmd)
-        i = self.child.expect([pexpect.TIMEOUT, WALLET_SYNCED_PROMPT, WALLET_NODAEMON_PROMPT,WALLET_PASSWORD_PROMPT], timeout = self.TIMEOUT)
+        i = self.child.expect([pexpect.TIMEOUT, WALLET_SYNCED_PROMPT, WALLET_NODAEMON_PROMPT,WALLET_PASSWORD_PROMPT,WALLET_ISOKAY_PROMPT], timeout = self.TIMEOUT)
         if i == 0: # Timeout
             self.haltAndCatchFire('TIMEOUT ERROR! Wallet did not return within TIMEOUT limit %s' % self.TIMEOUT)
 
@@ -116,31 +123,24 @@ class Wallet(object):
             else:
                 self.ready = True
         elif i ==3:  #password Prompt
-            self.child.sendline(self.rawPassword)
-            i = self.child.expect([pexpect.TIMEOUT, WALLET_SYNCED_PROMPT, WALLET_NODAEMON_PROMPT,WALLET_ISOKAY_PROMPT], timeout = self.TIMEOUT)
-            if i == 0: # Timeout
-                self.haltAndCatchFire('TIMEOUT ERROR! Wallet did not return within TIMEOUT limit %s' % self.TIMEOUT)
+            self.walletCmd(self.rawPassword,autoConfirm)
 
-            elif i == 1: # WALLET_SYNCED_PROMPT
-                if self.cold:
-                    self.haltAndCatchFire('ROGUE SYNC ERROR! Cold Wallet was asked for, but the wallet found a daemon! YOUR SEED COULD BE COMPROMISED!!')
-                else: # hot waller, expected (pun intended)
-                    self.ready = True
-
-            elif i ==2: # WALLET_NODAEMON_PROMPT
-                if not self.cold:
-                    self.haltAndCatchFire('No Sync Error: wallet returned without finding daemon')
-                else:
-                    self.ready = True
-            elif i ==3:   # WALLET_ISOKAY_PROMPT
-                if self.getConfirmation(self.child.before,autoConfirm):
-                    self.ready = True
+        elif i ==4:   # WALLET_ISOKAY_PROMPT
+            if self.getConfirmation(self.child.before,autoConfirm):
+                self.ready = True
 
         if not self.ready:
             self.haltAndCatchFire("Automation Deadend: Wallet took us to somewhere we didn't plan")
+        else:
+            return self.child.before
 
     def getConfirmation(self,context,autoConfirm):
-        return False
+        if autoConfirm:
+            self.walletCmd("y",autoConfirm)
+            return self.ready
+        else:
+            self.haltAndCatchFire("Automation Deadend: haven't coded confirmation by live human")
+            return False
 
 
 
