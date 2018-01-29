@@ -90,9 +90,7 @@ class Wallet(object):
 
         print(self.child.before)
         print(self.child.after)
-        print("*"*80)
-        self.getViewOnly()
-        self.stopWallet()
+
 
     def transfer(self,destAddress, amount, priority = "unimportant", ):
         tx_string = 'transfer %s %s %s' % (priority,destAddress,amount)
@@ -104,8 +102,9 @@ class Wallet(object):
         return viewSecret, thisWalletAddress
 
 
-    def walletCmd(self,cmd,autoConfirm = False):
+    def walletCmd(self,cmd,autoConfirm = False,verbose = True):
         self.ready = False
+        #if verbose: print(self.child.before,self.child.after)
         self.child.sendline(cmd)
         i = self.child.expect([pexpect.TIMEOUT, WALLET_SYNCED_PROMPT, WALLET_NODAEMON_PROMPT,WALLET_PASSWORD_PROMPT,WALLET_ISOKAY_PROMPT], timeout = self.TIMEOUT)
         if i == 0: # Timeout
@@ -123,10 +122,12 @@ class Wallet(object):
             else:
                 self.ready = True
         elif i ==3:  #password Prompt
+            if verbose: print(self.child.before,self.child.after)
             self.walletCmd(self.rawPassword,autoConfirm)
 
         elif i ==4:   # WALLET_ISOKAY_PROMPT
-            if self.getConfirmation(self.child.before,autoConfirm):
+            if verbose: print(self.child.before,self.child.after)
+            if self.getConfirmation(self.child.before,autoConfirm,verbose):
                 self.ready = True
 
         if not self.ready:
@@ -134,7 +135,7 @@ class Wallet(object):
         else:
             return self.child.before
 
-    def getConfirmation(self,context,autoConfirm):
+    def getConfirmation(self,context,autoConfirm,verbose):
         if autoConfirm:
             self.walletCmd("y",autoConfirm)
             return self.ready
@@ -148,8 +149,12 @@ class Wallet(object):
 
 
 if __name__ == "__main__":
-    #hotwallet = Wallet(walletFile = os.path.join(MONERO_DIR,"testnet"), password = '',daemonAddress = "testnet.kasisto.io:28081",testnet = True,cold = False)
-    hotwallet = Wallet(walletFile = os.path.join(MONERO_DIR,"testnet"), password = '',testnet = True,cold = True)
+    openwallet = Wallet(walletFile = os.path.join(MONERO_DIR,"testview"), password = '',daemonAddress = "testnet.kasisto.io:28081",testnet = True,cold = False)
+    #openwallet = Wallet(walletFile = os.path.join(MONERO_DIR,"testnet"), password = '',testnet = True,cold = True)
+    openwallet.getViewOnly()
+    openwallet.walletCmd("transfer unimportant A16nFcW5XuU6Hm2owV4g277yWjjY6cVZy5YgE15HS6C8JujtUUP51jP7pBECqk78QW8K78yNx9LB4iB8jY3vL8vw3JhiQuX .45",autoConfirm = True)
+    print(openwallet.child.before)
+    openwallet.stopWallet()
 
 
 
