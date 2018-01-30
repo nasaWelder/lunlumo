@@ -3,7 +3,7 @@
 """
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License.
+    the Free Software Foundation, version 3 of the License.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -25,7 +25,7 @@ import argparse
 import hashlib
 import math
 import os
-import Tkinter as tk
+#import Tkinter as tk
 from glob import glob
 import sys
 import webbrowser as web
@@ -98,7 +98,7 @@ def send(args):
         if i>=200:
             print("file really got out of hand, exiting")
             break
-        page = heading + chunk
+        page = heading + chunk.decode("utf-8")
         pageName = os.path.basename(args.infile) + "_" + str(checksum) + "_" + str(i) + "of" + ".svg"
         qrPage = pyqrcode.create(page,error="L")
         #print(qrPage.text())
@@ -218,7 +218,7 @@ sendParser.add_argument('infile',
                     help='file to be converted to QR code batch')
 sendParser.add_argument('--delay', default="1.0", type=restricted_delay,
                     help='delay in seconds after which QR code will transition to next QR code.')
-sendParser.add_argument('--bytes', default=1000, choices=xrange(50, 2500), type=int,
+sendParser.add_argument('--bytes', default=1000, choices=range(50, 2500), type=int,
                     help='how many bytes to stuff in QR code.')
 sendParser.add_argument('--outDir', default="./",
                     help='dir to place QR code batch')

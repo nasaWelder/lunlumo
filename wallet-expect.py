@@ -3,7 +3,7 @@
 """
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License.
+    the Free Software Foundation, version 3 of the License.
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -96,7 +96,7 @@ class Wallet(object):
     def startWallet(self):
         self.cmdMonero = os.path.join(MONERO_DIR,"monero-wallet-cli")
         if self.testnet: print("self.cmdMonero: ",self.cmdMonero)
-        self.child = pexpect.spawn(self.cmdMonero + ' ' + ''.join(arg + ' ' for arg in self.walletArgs))
+        self.child = pexpect.spawn(self.cmdMonero + ' ' + ''.join(arg + ' ' for arg in self.walletArgs),encoding='utf-8')
         i = self.child.expect([pexpect.TIMEOUT, WALLET_SYNCED_PROMPT, WALLET_NODAEMON_PROMPT], timeout = self.TIMEOUT)
         if i == 0: # Timeout
             self.haltAndCatchFire('TIMEOUT ERROR! Wallet did not return within TIMEOUT limit %s' % self.TIMEOUT)
@@ -155,7 +155,7 @@ class Wallet(object):
         elif i ==4:   # WALLET_ISOKAY_PROMPT
             #if verbose:
                 #print(self.child.before + self.child.after)
-            if self.getConfirmation(self.child.before.rstrip() + self.child.after.rstrip(),autoConfirm,verbose):
+            if self.getConfirmation(self.child.before.rstrip() +" " + self.child.after.rstrip(),autoConfirm,verbose):
                 self.ready = True
 
         if not self.ready:
@@ -175,9 +175,9 @@ class Wallet(object):
             return self.ready
         else:
             try:
+                print("\n"+"#"*80)
                 print("#"*80)
-                print("#"*80)
-                print("\r\n\r\nHUMAN INTERACTION NEEDED!\r\n")
+                print("\r\nHUMAN INTERACTION NEEDED!\r\n")
                 print("\r\n" + context,end="")
                 self.child.interact(output_filter = self.confirmationFilter)
             except Exception as e:
@@ -194,7 +194,7 @@ class Wallet(object):
 
     def confirmationFilter(self,s):
         #print("buffer",self.filterBuffer)
-        self.filterBuffer += s
+        self.filterBuffer += s.decode("utf-8")
         if  "\r\n" in self.filterBuffer:
             if self.filterBuffer.lower() in ["y\r\n", "yes\r\n","y","yes"]:
                  self.filterBuffer = ""
@@ -212,7 +212,7 @@ if __name__ == "__main__":
     openwallet = Wallet(walletFile = os.path.join(MONERO_DIR,"testview"), password = '',daemonAddress = "testnet.kasisto.io:28081",testnet = True,cold = False)
     #openwallet = Wallet(walletFile = os.path.join(MONERO_DIR,"testnet"), password = '',testnet = True,cold = True)
     openwallet.getViewOnly()
-    openwallet.walletCmd("transfer unimportant A16nFcW5XuU6Hm2owV4g277yWjjY6cVZy5YgE15HS6C8JujtUUP51jP7pBECqk78QW8K78yNx9LB4iB8jY3vL8vw3JhiQuX .45",autoConfirm = 1)
+    openwallet.walletCmd("transfer unimportant A16nFcW5XuU6Hm2owV4g277yWjjY6cVZy5YgE15HS6C8JujtUUP51jP7pBECqk78QW8K78yNx9LB4iB8jY3vL8vw3JhiQuX .45",autoConfirm = 0)
     #print(openwallet.child.before)
     openwallet.stopWallet()
 
