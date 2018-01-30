@@ -1,7 +1,27 @@
+# wallet-expect.py library for automating cli wallet
+# Copyright (C) 2017-2018  u/NASA_Welder>
+"""
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+from __future__ import print_function
+
+
 import pexpect
 import os
 import os.path
 import time
+
 
 # ./monero-wallet-cli --wallet-file testview --testnet --daemon-address testnet.kasisto.io:28081 --command transfer A16nFcW5XuU6Hm2owV4g277yWjjY6cVZy5YgE15HS6C8JujtUUP51jP7pBECqk78QW8K78yNx9LB4iB8jY3vL8vw3JhiQuX 1
 
@@ -63,8 +83,14 @@ class Wallet(object):
         raise Exception(err)
 
     def stopWallet(self):
-        self.child.sendline('exit')
-        time.sleep(20)
+        try:
+            self.walletCmd("exit")
+        except Exception as e:
+            if "End Of File (EOF)" in str(e):
+                print(" exit\r\n<exited wallet>\r\n")
+                return
+        if not self.child.isalive(): return
+        time.sleep(13)
         if self.child.isalive():
             self.child.terminate(force=True)
 
@@ -88,8 +114,8 @@ class Wallet(object):
             else:
                 self.ready = True
 
-        print(self.child.before)
-        print(self.child.after)
+        print(self.child.before,end="")
+        print(self.child.after,end="")
 
 
     def transfer(self,destAddress, amount, priority = "unimportant", ):
@@ -102,10 +128,11 @@ class Wallet(object):
         return viewSecret, thisWalletAddress
 
 
-    def walletCmd(self,cmd,autoConfirm = False,verbose = True):
+    def walletCmd(self,cmd,autoConfirm = False,verbose = True,NOP = False):
+        self.filterBuffer = ""
         self.ready = False
         #if verbose: print(self.child.before,self.child.after)
-        self.child.sendline(cmd)
+        if not NOP: self.child.sendline(cmd)
         i = self.child.expect([pexpect.TIMEOUT, WALLET_SYNCED_PROMPT, WALLET_NODAEMON_PROMPT,WALLET_PASSWORD_PROMPT,WALLET_ISOKAY_PROMPT], timeout = self.TIMEOUT)
         if i == 0: # Timeout
             self.haltAndCatchFire('TIMEOUT ERROR! Wallet did not return within TIMEOUT limit %s' % self.TIMEOUT)
@@ -122,27 +149,61 @@ class Wallet(object):
             else:
                 self.ready = True
         elif i ==3:  #password Prompt
-            if verbose: print(self.child.before,self.child.after)
-            self.walletCmd(self.rawPassword,autoConfirm)
+            if verbose:
+                print(self.child.before + WALLET_PASSWORD_PROMPT + " <password supplied>",end="")
+            self.walletCmd(self.rawPassword,autoConfirm,verbose=False)
 
         elif i ==4:   # WALLET_ISOKAY_PROMPT
-            if verbose: print(self.child.before,self.child.after)
-            if self.getConfirmation(self.child.before,autoConfirm,verbose):
+            #if verbose:
+                #print(self.child.before + self.child.after)
+            if self.getConfirmation(self.child.before.rstrip() + self.child.after.rstrip(),autoConfirm,verbose):
                 self.ready = True
 
         if not self.ready:
             self.haltAndCatchFire("Automation Deadend: Wallet took us to somewhere we didn't plan")
         else:
+            self.filterBuffer = ""
+            if verbose:
+                print(self.child.before,end="")
+                print(self.child.after,end="")
             return self.child.before
 
     def getConfirmation(self,context,autoConfirm,verbose):
+        self.autoConfirm = autoConfirm
         if autoConfirm:
-            self.walletCmd("y",autoConfirm)
+            print(context + " <auto-confirming>",end="")
+            self.walletCmd("y",autoConfirm,verbose=False)
             return self.ready
         else:
-            self.haltAndCatchFire("Automation Deadend: haven't coded confirmation by live human")
-            return False
+            try:
+                print("#"*80)
+                print("#"*80)
+                print("\r\n\r\nHUMAN INTERACTION NEEDED!\r\n")
+                print("\r\n" + context,end="")
+                self.child.interact(output_filter = self.confirmationFilter)
+            except Exception as e:
+                print("\r\n END OF HUMAN INTERACTION \r\n")
+                print("#"*80)
+                print("#"*80)
+                if not "ONPURPOSE" == str(e).strip():
+                    raise
 
+            #print("after interact")
+            self.walletCmd("dummy_command",self.autoConfirm,NOP = True,verbose=False)
+            #self.haltAndCatchFire("Automation Deadend: haven't coded confirmation by live human")
+            return self.ready
+
+    def confirmationFilter(self,s):
+        #print("buffer",self.filterBuffer)
+        self.filterBuffer += s
+        if  "\r\n" in self.filterBuffer:
+            if self.filterBuffer.lower() in ["y\r\n", "yes\r\n","y","yes"]:
+                 self.filterBuffer = ""
+                 raise Exception("ONPURPOSE")
+            else:
+                self.haltAndCatchFire("User Exit: user supplied input that killed automation: %s" % self.filterBuffer)
+            self.filterBuffer = ""
+        return s
 
 
 
@@ -152,8 +213,8 @@ if __name__ == "__main__":
     openwallet = Wallet(walletFile = os.path.join(MONERO_DIR,"testview"), password = '',daemonAddress = "testnet.kasisto.io:28081",testnet = True,cold = False)
     #openwallet = Wallet(walletFile = os.path.join(MONERO_DIR,"testnet"), password = '',testnet = True,cold = True)
     openwallet.getViewOnly()
-    openwallet.walletCmd("transfer unimportant A16nFcW5XuU6Hm2owV4g277yWjjY6cVZy5YgE15HS6C8JujtUUP51jP7pBECqk78QW8K78yNx9LB4iB8jY3vL8vw3JhiQuX .45",autoConfirm = True)
-    print(openwallet.child.before)
+    openwallet.walletCmd("transfer unimportant A16nFcW5XuU6Hm2owV4g277yWjjY6cVZy5YgE15HS6C8JujtUUP51jP7pBECqk78QW8K78yNx9LB4iB8jY3vL8vw3JhiQuX .45",autoConfirm = 1)
+    #print(openwallet.child.before)
     openwallet.stopWallet()
 
 
