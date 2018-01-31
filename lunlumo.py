@@ -216,7 +216,7 @@ sendParser.add_argument('msgType', choices = ["signed_tx","unsigned_tx","watch-o
                     help='heading for qrcodes')
 sendParser.add_argument('infile',
                     help='file to be converted to QR code batch')
-sendParser.add_argument('--delay', default="1.0", type=restricted_delay,
+sendParser.add_argument('--delay', default="1.1", type=restricted_delay,
                     help='delay in seconds after which QR code will transition to next QR code.')
 sendParser.add_argument('--bytes', default=1000, choices=range(50, 2500), type=int,
                     help='how many bytes to stuff in QR code.')
@@ -226,7 +226,7 @@ sendParser.set_defaults(func=send)
 
 stitchParser = subparsers.add_parser("stitch")
 stitchParser.add_argument('infile',
-                    help='file to be converted to QR code batch')
+                    help='file to be converted to monero format')
 stitchParser.add_argument('--outDir', default="./",
                     help='dir to place stitched together file')
 stitchParser.set_defaults(func=stitch)

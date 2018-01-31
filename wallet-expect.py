@@ -29,7 +29,8 @@ MONERO_DIR = "/home/devarea/bin/monero-gui-v0.11.1.0/"
 WALLET_SYNCED_PROMPT    = r"\[wallet [0-9A-Za-z]{6}\]:"                 # [wallet 9wXvk8]:
 WALLET_NODAEMON_PROMPT  = r"\[wallet [0-9A-Za-z]{6} \(no daemon\)\]:"     # [wallet 9wXvk8 (no daemon)]:
 WALLET_PASSWORD_PROMPT  = r"Wallet password:"
-WALLET_ISOKAY_PROMPT    = r"Is this okay\?  \(Y/Yes/N/No\):"            # "Is this okay?  (Y/Yes/N/No):"
+WALLET_ISOKAY_PROMPT    = r"Is this okay\?\s+\(Y/Yes/N/No\):"            # "Is this okay?  (Y/Yes/N/No):"   #submit_transfer has  "Is this okay? (Y/Yes/N/No):"
+
 
 
 class Wallet(object):
@@ -86,7 +87,7 @@ class Wallet(object):
             self.walletCmd("exit")
         except Exception as e:
             if "End Of File (EOF)" in str(e):
-                print(" exit\r\n<exited wallet>\r\n")
+                print(" exit\r\n<exited wallet: %s>\r\n"% self.walletFile)
                 return
         if not self.child.isalive(): return
         time.sleep(13)
@@ -117,15 +118,76 @@ class Wallet(object):
         print(self.child.after,end="")
 
 
-    def transfer(self,destAddress, amount, priority = "unimportant", ):
-        tx_string = 'transfer %s %s %s' % (priority,destAddress,amount)
-        self.child.sendline(tx_string)
-
-    def getViewOnly(self):
-        viewSecret= self.walletCmd("viewkey").split()[1]
-        thisWalletAddress = self.walletCmd("address").split()[1]
+    def get_view_only_info(self,verbose=True):
+        viewSecret= self.walletCmd("viewkey",verbose=verbose).split()[1]
+        thisWalletAddress = self.walletCmd("address",verbose=verbose).split()[1]
         return viewSecret, thisWalletAddress
 
+    def export_outputs(self,outputsFileName = "outputs_from_viewonly",verbose = True):
+        # TODO check filename string validity
+        info = self.walletCmd("export_outputs %s" % outputsFileName,verbose = True)
+        if not ("Outputs exported to %s" % outputsFileName) in info:
+            self.haltAndCatchFire('Wallet Error! unexpected result in export_outputs("%s"): %s' % (outputsFileName, info))
+        else:
+            return outputsFileName,info
+
+    def import_outputs(self,outputsFileName = "outputs_from_viewonly",verbose = True):
+        # TODO check filename string validity
+        info = self.walletCmd("import_outputs %s" % outputsFileName,verbose = True)
+        numOutputs = info.strip().split()[0]
+        if not "outputs imported" in info:
+            self.haltAndCatchFire('Wallet Error! unexpected result in import_outputs("%s"): %s' % (outputsFileName, info))
+        else:
+            return numOutputs,info
+
+    def export_key_images(self,keyImagesFileName = "key_images_from_cold_wallet",verbose = True):
+        # TODO check filename string validity
+        info = self.walletCmd("export_key_images %s" % keyImagesFileName,verbose = True)
+        if not ("Signed key images exported to %s" % keyImagesFileName) in info:
+            self.haltAndCatchFire('Wallet Error! unexpected result in export_key_images("%s"): %s' % (keyImagesFileName, info))
+        else:
+            return keyImagesFileName,info
+
+    def import_key_images(self,keyImagesFileName = "key_images_from_cold_wallet",verbose = True):
+        # TODO check filename string validity
+        info = self.walletCmd("import_key_images %s" % keyImagesFileName,verbose = True)
+        # Signed key images imported to height 1091104, 25.482444280000 spent, 11.000000000000 unspent
+        if not "Signed key images imported to height" in info:
+            self.haltAndCatchFire('Wallet Error! unexpected result in import_key_images("%s"): %s' % (keyImagesFileName, info))
+        else:
+            height = info.strip().split(",")[0].split()[-1]
+            spent  = info.strip().split(",")[1].split()[0].strip()
+            unspent  = info.strip().split(",")[2].split()[0].strip()
+            return height,spent,unspent,info
+
+    def transfer(self,destAddress, amount, priority = "unimportant",autoConfirm = 0, verbose = True ):
+        tx_string = 'transfer %s %s %s' % (priority,destAddress,amount)
+        info = self.walletCmd(tx_string,verbose=verbose,autoConfirm = autoConfirm)
+        if not self.cold:
+            # saves unsigned_monero_tx to cwd
+            if not "Unsigned transaction(s) successfully written to file:" in info:
+                self.haltAndCatchFire('Wallet Error! unexpected result in transfer("%s"): %s' % (tx_string, info))
+        return info
+
+    def sign_transfer(self,autoConfirm = 0, verbose = True):
+        # looks for unsigned_monero_tx in cwd
+        info = self.walletCmd("sign_transfer",verbose=verbose,autoConfirm = autoConfirm)
+        # saves signed_monero_tx to cwd
+        if not "Transaction successfully signed to file signed_monero_tx" in info:
+            self.haltAndCatchFire('Wallet Error! unexpected result in sign_transfer: %s' % (info))
+        return info
+
+    def submit_transfer(self,autoConfirm = 0, verbose = True):
+        # looks for signed_monero_tx in cwd
+        if self.cold:
+            self.haltAndCatchFire('Wallet Error! Cold wallet cannot submit_transfer!')
+        info = self.walletCmd("submit_transfer",verbose=verbose,autoConfirm = autoConfirm)
+        if not "Money successfully sent" in info:
+            self.haltAndCatchFire('Wallet Error! unexpected result in sign_transfer: %s' % (info))
+        return info
+
+    def transferViewOnly(self,destAddress, amount, priority = "unimportant",autoConfirm = 0, verbose = True):
+        outFile,info = self.export_outputs(outFileName = "outputs_from_viewonly")
 
     def walletCmd(self,cmd,autoConfirm = False,verbose = True,NOP = False):
         self.filterBuffer = ""
@@ -209,12 +271,27 @@ class Wallet(object):
 
 
 if __name__ == "__main__":
-    openwallet = Wallet(walletFile = os.path.join(MONERO_DIR,"testview"), password = '',daemonAddress = "testnet.kasisto.io:28081",testnet = True,cold = False)
-    #openwallet = Wallet(walletFile = os.path.join(MONERO_DIR,"testnet"), password = '',testnet = True,cold = True)
-    openwallet.getViewOnly()
-    openwallet.walletCmd("transfer unimportant A16nFcW5XuU6Hm2owV4g277yWjjY6cVZy5YgE15HS6C8JujtUUP51jP7pBECqk78QW8K78yNx9LB4iB8jY3vL8vw3JhiQuX .45",autoConfirm = 0)
+    hotwallet = Wallet(walletFile = os.path.join(MONERO_DIR,"testview"), password = '',daemonAddress = "testnet.kasisto.io:28081",testnet = True,cold = False)
+    coldwallet = Wallet(walletFile = os.path.join(MONERO_DIR,"testnet"), password = '',testnet = True,cold = True)
+
+    hotwallet.export_outputs()
+    time.sleep(4)
+    coldwallet.import_outputs()
+    time.sleep(4)
+    coldwallet.export_key_images()
+    time.sleep(4)
+    hotwallet.import_key_images()
+    time.sleep(4)
+    hotwallet.transfer(priority = "unimportant", destAddress = "A16nFcW5XuU6Hm2owV4g277yWjjY6cVZy5YgE15HS6C8JujtUUP51jP7pBECqk78QW8K78yNx9LB4iB8jY3vL8vw3JhiQuX", amount = ".45",autoConfirm = 1)
+    time.sleep(4)
+    coldwallet.sign_transfer(autoConfirm = 0)
+    time.sleep(4)
+    hotwallet.submit_transfer(autoConfirm = 1)
+    time.sleep(4)
     #print(openwallet.child.before)
-    openwallet.stopWallet()
+    hotwallet.stopWallet()
+    coldwallet.stopWallet()
+
 
 
 
