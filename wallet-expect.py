@@ -1,5 +1,5 @@
 # wallet-expect.py library for automating cli wallet
-# Copyright (C) 2017-2018  u/NASA_Welder>
+# Copyright (C) 2017-2018  u/NASA_Welder
 """
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -14,12 +14,23 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 from __future__ import print_function
-
+import sys
+if sys.version_info < (3,):
+    ENCODING = None
+    def b(x):
+        return x
+else:
+    #import codecs
+    ENCODING = "utf-8"
+    def b(x):
+        #return codecs.latin_1_encode(x)[0]
+        return x.decode("utf-8")
 
 import pexpect
 import os
 import os.path
 import time
+import getpass
 
 
 # ./monero-wallet-cli --wallet-file testview --testnet --daemon-address testnet.kasisto.io:28081 --command transfer A16nFcW5XuU6Hm2owV4g277yWjjY6cVZy5YgE15HS6C8JujtUUP51jP7pBECqk78QW8K78yNx9LB4iB8jY3vL8vw3JhiQuX 1
@@ -36,12 +47,14 @@ WALLET_ISOKAY_PROMPT    = r"Is this okay\?\s+\(Y/Yes/N/No\):"            # "Is t
 class Wallet(object):
     def __init__(self, walletFile = None, password = '',daemonAddress = None, daemonHost = None,testnet = False,cold = True):
         self.ready = False
-        self.TIMEOUT = 45
+        self.TIMEOUT = 300   # may need to bump this up if using new wallets
         self.walletArgs = []
 
         self.walletFile = walletFile.split()[0]  #split is to defeat sneaky attack
         if not walletFile:
             raise Exception("Argument Error: Currently, this library does not automate wallet generation... maybe if you ask nicely we can add it")
+        if not password:
+            password = getpass.getpass(prompt="Password for %s:"%walletFile)
         self.walletArgs.extend(["--wallet-file",walletFile])
 
         self.rawPassword = password
@@ -97,7 +110,7 @@ class Wallet(object):
     def startWallet(self):
         self.cmdMonero = os.path.join(MONERO_DIR,"monero-wallet-cli")
         if self.testnet: print("self.cmdMonero: ",self.cmdMonero)
-        self.child = pexpect.spawn(self.cmdMonero + ' ' + ''.join(arg + ' ' for arg in self.walletArgs),encoding='utf-8')
+        self.child = pexpect.spawn(self.cmdMonero + ' ' + ''.join(arg + ' ' for arg in self.walletArgs),encoding= ENCODING)
         i = self.child.expect([pexpect.TIMEOUT, WALLET_SYNCED_PROMPT, WALLET_NODAEMON_PROMPT], timeout = self.TIMEOUT)
         if i == 0: # Timeout
             self.haltAndCatchFire('TIMEOUT ERROR! Wallet did not return within TIMEOUT limit %s' % self.TIMEOUT)
@@ -113,7 +126,7 @@ class Wallet(object):
                 self.haltAndCatchFire('No Sync Error: wallet returned without finding daemon')
             else:
                 self.ready = True
-
+        self.TIMEOUT = 45
         print(self.child.before,end="")
         print(self.child.after,end="")
 
@@ -256,7 +269,7 @@ class Wallet(object):
 
     def confirmationFilter(self,s):
         #print("buffer",self.filterBuffer)
-        self.filterBuffer += s.decode("utf-8")
+        self.filterBuffer += b(s)
         if  "\r\n" in self.filterBuffer:
             if self.filterBuffer.lower() in ["y\r\n", "yes\r\n","y","yes"]:
                  self.filterBuffer = ""
@@ -273,21 +286,22 @@ class Wallet(object):
 if __name__ == "__main__":
     hotwallet = Wallet(walletFile = os.path.join(MONERO_DIR,"testview"), password = '',daemonAddress = "testnet.kasisto.io:28081",testnet = True,cold = False)
     coldwallet = Wallet(walletFile = os.path.join(MONERO_DIR,"testnet"), password = '',testnet = True,cold = True)
+    hsleep = 2
 
     hotwallet.export_outputs()
-    time.sleep(4)
+    time.sleep(hsleep)
     coldwallet.import_outputs()
-    time.sleep(4)
+    time.sleep(hsleep)
     coldwallet.export_key_images()
-    time.sleep(4)
+    time.sleep(hsleep)
     hotwallet.import_key_images()
-    time.sleep(4)
+    time.sleep(hsleep)
     hotwallet.transfer(priority = "unimportant", destAddress = "A16nFcW5XuU6Hm2owV4g277yWjjY6cVZy5YgE15HS6C8JujtUUP51jP7pBECqk78QW8K78yNx9LB4iB8jY3vL8vw3JhiQuX", amount = ".45",autoConfirm = 1)
-    time.sleep(4)
+    time.sleep(hsleep)
     coldwallet.sign_transfer(autoConfirm = 0)
-    time.sleep(4)
+    time.sleep(hsleep)
     hotwallet.submit_transfer(autoConfirm = 1)
-    time.sleep(4)
+    time.sleep(hsleep)
     #print(openwallet.child.before)
     hotwallet.stopWallet()
     coldwallet.stopWallet()

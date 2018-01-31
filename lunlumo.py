@@ -1,5 +1,5 @@
 # lunlumo.py splits files into QR code loops for file transfer
-# Copyright (C) 2017-2018  u/NASA_Welder>
+# Copyright (C) 2017-2018  u/NASA_Welder
 """
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -13,6 +13,18 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
+from __future__ import print_function
+
+import sys
+if sys.version_info < (3,):
+   #import Tkinter as tk
+    def b(x):
+        return x
+else:
+    #import codecs
+    def b(x):
+        #return codecs.latin_1_encode(x)[0]
+        return x.decode("utf-8")
 
 ## external libraries
 import pyqrcode
@@ -25,9 +37,9 @@ import argparse
 import hashlib
 import math
 import os
-#import Tkinter as tk
+import Tkinter as tk
 from glob import glob
-import sys
+
 import webbrowser as web
 ##
 
@@ -98,7 +110,7 @@ def send(args):
         if i>=200:
             print("file really got out of hand, exiting")
             break
-        page = heading + chunk.decode("utf-8")
+        page = heading + b(chunk)
         pageName = os.path.basename(args.infile) + "_" + str(checksum) + "_" + str(i) + "of" + ".svg"
         qrPage = pyqrcode.create(page,error="L")
         #print(qrPage.text())
