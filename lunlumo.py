@@ -37,7 +37,7 @@ import argparse
 import hashlib
 import math
 import os
-import Tkinter as tk
+#import Tkinter as tk
 from glob import glob
 
 import webbrowser as web
@@ -58,21 +58,21 @@ def restricted_delay(x):
     return x
 
 def send(args):
-    PAGE_SIZE = args.bytes
+    PAGE_SIZE = int(args["bytes"])
 
-    actualOutDir =  os.path.realpath(os.path.join(args.outDir,os.path.basename(args.infile) + ".QRbatch"))
+    actualOutDir =  os.path.realpath(os.path.join(args["outDir"],os.path.basename(args["infile"]) + ".QRbatch"))
     os.makedirs(actualOutDir)
 
     bitPath = os.path.join(actualOutDir,'bits')
 
-    with open(args.infile, "rb") as source:
+    with open(args["infile"], "rb") as source:
         with open(bitPath, 'wb') as dest:
             dest.write(base64.b64encode(source.read()))
 
-    checksum = crc(args.infile)
-    print("\n\t%s crc32:\t%s" %(args.infile,checksum))
+    checksum = crc(args["infile"])
+    print("\n\t%s crc32:\t%s" %(args["infile"],checksum))
     print("\n\t%s crc32:\t%s" %(bitPath,crc(bitPath)))
-    fsize = os.path.getsize(args.infile)
+    fsize = os.path.getsize(args["infile"])
     htmlfile = open(os.path.join(actualOutDir,"all.html"), "w")
     htmlfile.write("<!DOCTYPE html>\n<html>\n<body>\n")
     htmlfile.write('<table cellpadding="35">\n<tr><th>qrcode</th><th>file</th></tr>\n')
@@ -82,7 +82,7 @@ def send(args):
 
 
 
-    #with open(args.infile,"rb") as f:
+    #with open(args["infile"],"rb") as f:
     with open(bitPath, 'rb') as f:
       k = 1
       while True:
@@ -98,7 +98,7 @@ def send(args):
     with open(bitPath, 'rb') as f:
       i = 1
       while True:
-        heading = args.msgType + "," + str(checksum) + "," + str(i) + "/" + str(int(numQR)) + ":"
+        heading = args["msgType"] + "," + str(checksum) + "," + str(i) + "/" + str(int(numQR)) + ":"
         chunk = f.read(PAGE_SIZE)
 
 
@@ -111,11 +111,12 @@ def send(args):
             print("file really got out of hand, exiting")
             break
         page = heading + b(chunk)
-        pageName = os.path.basename(args.infile) + "_" + str(checksum) + "_" + str(i) + "of" + ".svg"
+        pageName = os.path.basename(args["infile"]) + "_" + str(checksum) + "_" + str(i) + "of" + ".svg"
         qrPage = pyqrcode.create(page,error="L")
         #print(qrPage.text())
         pagePath = os.path.join(actualOutDir,pageName)
         saved = qrPage.svg(pagePath)
+        saved2 = qrPage.eps(pagePath+".eps",scale=4.5, module_color='#36C')
         i+=1
     htmlfile = open(os.path.join(actualOutDir,"all.html"), "w")
     htmlfile.write("<!DOCTYPE html>\n<html>\n<body>\n")
@@ -135,7 +136,7 @@ def send(args):
     htmlfile.close()
 
     loopfile = open(os.path.join(actualOutDir,"loop.html"), "w")
-    base = os.path.basename(args.infile) + "_" + str(checksum) + "_"
+    base = os.path.basename(args["infile"]) + "_" + str(checksum) + "_"
     last = "of" + str(numQR) + ".svg"
     firstImg = base + str(1) + last
     loopfile.write("""
@@ -149,7 +150,7 @@ def send(args):
 <div> src crc32: %(check)s <div>
 
 <table cellpadding="5">\n<tr><th></th><th></th><th></th></tr>
-<td><img src="%(outDir)s/%(firstImg)s" alt="ERROR in QR code processing" width="500" height="500" id="rotator"></td><td><div id="theName">X of X</div></td><td><div><iframe height="100px" src="../recvStatus.htm" name="recvStatusName" id="recvStatus"></iframe></div></td></table>
+<td><img src="%(outDir)s/%(firstImg)s" alt="ERROR in QR code processing" width="500" height="500" id="rotator"></td><td><div id="theName">X of X</div></td><td width= "600px"><div><iframe width= "600px" height="500px" src="../html/recvStatus.htm" name="recvStatusName" id="recvStatus"></iframe></div></td></table>
 <p>Monero donations to nasaWelder (babysitting money, so I can code!)</p>
 <p>48Zuamrb7P5NiBHrSN4ua3JXRZyPt6XTzWLawzK9QKjTVfsc2bUr1UmYJ44sisanuCJzjBAccozckVuTLnHG24ce42Qyak6</p>
 
@@ -180,15 +181,15 @@ function() {
 </script>
 </body>
 </html>
-""" % {"outDir" : actualOutDir + "/" ,"firstImg": firstImg,"N" : numQR,"base" :base,"last":last.replace(".svg",""),"src": os.path.basename(args.infile),"check":checksum, "delay": args.delay})
+""" % {"outDir" : actualOutDir + "/" ,"firstImg": firstImg,"N" : numQR,"base" :base,"last":last.replace(".svg",""),"src": os.path.basename(args["infile"]),"check":checksum, "delay": args["delay"]})
     loopfile.close()
     displayLoop(sendDir=actualOutDir)
 
 def stitch(args):
-    actualOutDir =  os.path.realpath(os.path.join(args.outDir,os.path.basename(args.infile) + ".QRstitched"))
+    actualOutDir =  os.path.realpath(os.path.join(args["outDir"],os.path.basename(args["infile"]) + ".QRstitched"))
     os.makedirs(actualOutDir)
-    stitchPath = os.path.join(actualOutDir,os.path.basename(args.infile) +".stitched")
-    with open(args.infile, "rb") as source:
+    stitchPath = os.path.join(actualOutDir,os.path.basename(args["infile"]) +".stitched")
+    with open(args["infile"], "rb") as source:
         with open(stitchPath, 'wb') as dest:
             data = source.read().strip()
             print(len(data)%4)
@@ -198,18 +199,32 @@ def stitch(args):
                 print(len(data)%4)
             dest.write(base64.b64decode(data))
 
-    print("\n\t%s crc32:\t%s" %(args.infile,crc(args.infile)))
+    print("\n\t%s crc32:\t%s" %(args["infile"],crc(args["infile"])))
     print("\n\t%s crc32:\t%s" %(stitchPath,crc(stitchPath)))
 
 
 
-def displayLoop(sendDir="signed_monero_tx.QRbatch"):
+def displayLoop(sendDir):
     web.open_new(os.path.realpath(sendDir) + "/loop.html")
     imageNames = glob(os.path.realpath(sendDir) + "/*.svg")
     #print(imageNames)
     i = 0
     #sendImages = [tk.PhotoImage(file=sendDir + img) for img in imageNames]
 
+
+def updateStatus(info):
+    # list of lines for status iframe
+    with open("./html/recvStatus.htm","w") as status:
+        status.write('''<html>
+<head>
+</head>
+
+<body>
+        ''')
+        for i in info:
+            status.write("<div>%s</div>"% i)
+        status.write('''</body>
+</html>''')
 
 def main():
 
@@ -227,7 +242,7 @@ sendParser = subparsers.add_parser('send')
 sendParser.add_argument('msgType', choices = ["signed_tx","unsigned_tx","watch-only","public_address","raw"],
                     help='heading for qrcodes')
 sendParser.add_argument('infile',
-                    help='file to be converted to QR code batch')
+                    help='file to be converted to QR code btkinatch')
 sendParser.add_argument('--delay', default="1.1", type=restricted_delay,
                     help='delay in seconds after which QR code will transition to next QR code.')
 sendParser.add_argument('--bytes', default=1000, choices=range(50, 2500), type=int,
@@ -249,5 +264,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     for arg in vars(args):
         print("\t%s\t\t%s"% (arg, getattr(args, arg)))
-    args.func(args)
+    args.func(args.__dict__)
 

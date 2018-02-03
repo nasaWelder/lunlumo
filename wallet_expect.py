@@ -56,6 +56,7 @@ class Wallet(object):
         self.ready = False
         self.TIMEOUT = 300   # may need to bump this up if using new wallets
         self.walletArgs = []
+
         self.walletFile = walletFile.split()[0]  #split is to defeat sneaky attack
         if not walletFile:
             raise Exception("Argument Error: Currently, this library does not automate wallet generation... maybe if you ask nicely we can add it")
@@ -91,7 +92,7 @@ class Wallet(object):
                 self.walletArgs.extend(self.daemonArg)
         if self.testnet:
             print("".join(arg + ' ' for arg in self.walletArgs))
-        self.beforeBin = ""
+
         self.startWallet()
 
     def haltAndCatchFire(self,err):
@@ -143,39 +144,35 @@ class Wallet(object):
         return viewSecret, thisWalletAddress
 
     def export_outputs(self,outputsFileName = "outputs_from_viewonly",verbose = True):
-        self.beforeBin = ""
         # TODO check filename string validity
         info = self.walletCmd("export_outputs %s" % outputsFileName,verbose = True)
-        if not ("Outputs exported to %s" % outputsFileName) in self.beforeBin:
+        if not ("Outputs exported to %s" % outputsFileName) in info:
             self.haltAndCatchFire('Wallet Error! unexpected result in export_outputs("%s"): %s' % (outputsFileName, info))
         else:
             return outputsFileName,info
 
     def import_outputs(self,outputsFileName = "outputs_from_viewonly",verbose = True):
-        self.beforeBin = ""
         # TODO check filename string validity
         info = self.walletCmd("import_outputs %s" % outputsFileName,verbose = True)
         numOutputs = info.strip().split()[0]
-        if not "outputs imported" in self.beforeBin:
+        if not "outputs imported" in info:
             self.haltAndCatchFire('Wallet Error! unexpected result in import_outputs("%s"): %s' % (outputsFileName, info))
         else:
             return numOutputs,info
 
     def export_key_images(self,keyImagesFileName = "key_images_from_cold_wallet",verbose = True):
-        self.beforeBin = ""
         # TODO check filename string validity
         info = self.walletCmd("export_key_images %s" % keyImagesFileName,verbose = True)
-        if not ("Signed key images exported to %s" % keyImagesFileName) in self.beforeBin:
+        if not ("Signed key images exported to %s" % keyImagesFileName) in info:
             self.haltAndCatchFire('Wallet Error! unexpected result in export_key_images("%s"): %s' % (keyImagesFileName, info))
         else:
             return keyImagesFileName,info
 
     def import_key_images(self,keyImagesFileName = "key_images_from_cold_wallet",verbose = True):
-        self.beforeBin = ""
         # TODO check filename string validity
         info = self.walletCmd("import_key_images %s" % keyImagesFileName,verbose = True)
         # Signed key images imported to height 1091104, 25.482444280000 spent, 11.000000000000 unspent
-        if not "Signed key images imported to height" in self.beforeBin:
+        if not "Signed key images imported to height" in info:
             self.haltAndCatchFire('Wallet Error! unexpected result in import_key_images("%s"): %s' % (keyImagesFileName, info))
         else:
             height = info.strip().split(",")[0].split()[-1]
@@ -184,36 +181,33 @@ class Wallet(object):
             return height,spent,unspent,info
 
     def transfer(self,destAddress, amount, priority = "unimportant",autoConfirm = 0, verbose = True ):
-        self.beforeBin = ""
         tx_string = 'transfer %s %s %s' % (priority,destAddress,amount)
         info = self.walletCmd(tx_string,verbose=verbose,autoConfirm = autoConfirm)
         if not self.cold:
             # saves unsigned_monero_tx to cwd
-            if not "Unsigned transaction(s) successfully written to file:" in self.beforeBin:
+            if not "Unsigned transaction(s) successfully written to file:" in info:
                 self.haltAndCatchFire('Wallet Error! unexpected result in transfer("%s"): %s' % (tx_string, info))
         return info
 
     def sign_transfer(self,autoConfirm = 0, verbose = True):
-        self.beforeBin = ""
         # looks for unsigned_monero_tx in cwd
         info = self.walletCmd("sign_transfer",verbose=verbose,autoConfirm = autoConfirm)
         # saves signed_monero_tx to cwd
-        if not "Transaction successfully signed to file signed_monero_tx" in self.beforeBin:
+        if not "Transaction successfully signed to file signed_monero_tx" in info:
             self.haltAndCatchFire('Wallet Error! unexpected result in sign_transfer: %s' % (info))
         return info
 
     def submit_transfer(self,autoConfirm = 0, verbose = True):
-        self.beforeBin = ""
         # looks for signed_monero_tx in cwd
         if self.cold:
             self.haltAndCatchFire('Wallet Error! Cold wallet cannot submit_transfer!')
         info = self.walletCmd("submit_transfer",verbose=verbose,autoConfirm = autoConfirm)
-        if not "Money successfully sent" in self.beforeBin:
+        if not "Money successfully sent" in info:
             self.haltAndCatchFire('Wallet Error! unexpected result in sign_transfer: %s' % (info))
         return info
 
-#    def transferViewOnly(self,destAddress, amount, priority = "unimportant",autoConfirm = 0, verbose = True):
-#        outFile,info = self.export_outputs(outFileName = "outputs_from_viewonly")
+    def transferViewOnly(self,destAddress, amount, priority = "unimportant",autoConfirm = 0, verbose = True):
+        outFile,info = self.export_outputs(outFileName = "outputs_from_viewonly")
 
     def walletCmd(self,cmd,autoConfirm = False,verbose = True,NOP = False):
         self.filterBuffer = ""
@@ -250,7 +244,6 @@ class Wallet(object):
             self.haltAndCatchFire("Automation Deadend: Wallet took us to somewhere we didn't plan")
         else:
             self.filterBuffer = ""
-            self.beforeBin += b(self.child.before)
             if verbose:
                 print(self.child.before,end="")
                 print(self.child.after,end="")
