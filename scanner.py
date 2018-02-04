@@ -1,5 +1,5 @@
-# camera functions
-# Copyright (C) 2017-2018  u/NASA_Welder
+# scanner.py camera functions
+# Copyright (C) 2018  u/NASA_Welder
 """
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -13,10 +13,6 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
-
-
-# picamera capture to PIL Image
-
 from io import BytesIO
 import time
 from picamera import PiCamera
@@ -43,6 +39,8 @@ class Scanner(object):
         self.camera = None
 
     def scan(self,verbose=False):
+        #### picamera capture to PIL Image
+
         # Create the in-memory stream
         stream = BytesIO()
 

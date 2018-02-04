@@ -17,10 +17,11 @@ from __future__ import print_function
 
 import sys
 if sys.version_info < (3,):
-   #import Tkinter as tk
+    import Tkinter as tk
     def b(x):
         return x
 else:
+    import tkinter as tk
     #import codecs
     def b(x):
         #return codecs.latin_1_encode(x)[0]
@@ -29,6 +30,7 @@ else:
 ## external libraries
 import pyqrcode
 import zlib
+from PIL import Image, ImageTk
 ##
 
 ## python stdlib
@@ -58,6 +60,7 @@ def restricted_delay(x):
     return x
 
 def send(args):
+    global frames
     PAGE_SIZE = int(args["bytes"])
 
     actualOutDir =  os.path.realpath(os.path.join(args["outDir"],os.path.basename(args["infile"]) + ".QRbatch"))
@@ -73,10 +76,6 @@ def send(args):
     print("\n\t%s crc32:\t%s" %(args["infile"],checksum))
     print("\n\t%s crc32:\t%s" %(bitPath,crc(bitPath)))
     fsize = os.path.getsize(args["infile"])
-    htmlfile = open(os.path.join(actualOutDir,"all.html"), "w")
-    htmlfile.write("<!DOCTYPE html>\n<html>\n<body>\n")
-    htmlfile.write('<table cellpadding="35">\n<tr><th>qrcode</th><th>file</th></tr>\n')
-
     print("\tfile size:\t\t%s bytes" % fsize)
     pages = math.ceil(float(fsize) / float(PAGE_SIZE))
 
@@ -97,6 +96,7 @@ def send(args):
         k+=1
     with open(bitPath, 'rb') as f:
       i = 1
+      frames = []
       while True:
         heading = args["msgType"] + "," + str(checksum) + "," + str(i) + "/" + str(int(numQR)) + ":"
         chunk = f.read(PAGE_SIZE)
@@ -110,19 +110,26 @@ def send(args):
         if i>=200:
             print("file really got out of hand, exiting")
             break
+
         page = heading + b(chunk)
-        pageName = os.path.basename(args["infile"]) + "_" + str(checksum) + "_" + str(i) + "of" + ".svg"
+        pageName = os.path.basename(args["infile"]) + "_" + str(checksum) + "_" + str(i) + "of" + str(int(numQR))
         qrPage = pyqrcode.create(page,error="L")
         #print(qrPage.text())
         pagePath = os.path.join(actualOutDir,pageName)
-        saved = qrPage.svg(pagePath)
-        saved2 = qrPage.eps(pagePath+".eps",scale=4.5, module_color='#36C')
+        if "htmlOutput" in args and args["htmlOutput"]: saved = qrPage.svg(pagePath + ".svg")
+        #saved2 = qrPage.eps(pagePath+".eps",scale=3.5,)
+        #frames.append( ImageTk.PhotoImage( Image.open( pagePath+".eps" ) ) )
+        code = tk.BitmapImage(data=qrPage.xbm(scale=4))
+        code.config(background="white")
+        frames.append(code)
         i+=1
+
     if "htmlOutput" in args and args["htmlOutput"]:
         args=dict(args)
         args.update({"actualOutDir":actualOutDir,"numQR":numQR,"checksum":checksum})
         htmlOutput(args)
 
+    return frames,actualOutDir
 
 def htmlOutput(args):
     htmlfile = open(os.path.join(args["actualOutDir"],"all.html"), "w")
@@ -130,11 +137,9 @@ def htmlOutput(args):
     htmlfile.write('<table cellpadding="35">\n<tr><th>qrcode</th><th>file</th></tr>\n')
     for filename in sorted(os.listdir(args["actualOutDir"])):
         #print("filename: ", filename)
-        if filename.endswith("of.svg"):
-            f2 = filename[:-4] + str(args["numQR"]) + filename[-4:]
-            os.rename(os.path.join(args["actualOutDir"],filename), os.path.join(args["actualOutDir"],f2))
+        if filename.endswith(".svg"):
             htmlfile.write('<tr>\n')
-            htmlfile.write('<td><img src = "' + os.path.join(args["actualOutDir"],f2) + '" alt ="cfg" align = "left" height="500" width="500"></td><td>%s</td>\n' % os.path.join(args["actualOutDir"],f2))
+            htmlfile.write('<td><img src = "' + os.path.join(args["actualOutDir"],filename) + '" alt ="cfg" align = "left" height="500" width="500"></td><td>%s</td>\n' % os.path.join(args["actualOutDir"],filename))
             htmlfile.write('</tr>\n')
 
 
@@ -233,13 +238,13 @@ def updateStatus(info):
         status.write('''</body>
 </html>''')
 
-def main():
-
-    root = tk.Tk()
-
-    displayLoop(sendDir="signed_monero_tx.QRbatch")
-    root.mainloop()
-
+def update(ind):
+    global frames
+    frame = frames[ind]
+    ind += 1
+    label.configure(image=frame)
+    if ind ==len(frames): ind =0
+    root.after(1100, update, ind)
 
 
 
@@ -249,7 +254,7 @@ sendParser = subparsers.add_parser('send')
 sendParser.add_argument('msgType', choices = ["signed_tx","unsigned_tx","watch-only","public_address","raw"],
                     help='heading for qrcodes')
 sendParser.add_argument('infile',
-                    help='file to be converted to QR code btkinatch')
+                    help='file to be converted to QR code batch')
 sendParser.add_argument('--delay', default="1.1", type=restricted_delay,
                     help='delay in seconds after which QR code will transition to next QR code.')
 sendParser.add_argument('--bytes', default=1000, choices=range(50, 2500), type=int,
@@ -273,5 +278,15 @@ if __name__ == "__main__":
     args = parser.parse_args()
     for arg in vars(args):
         print("\t%s\t\t%s"% (arg, getattr(args, arg)))
-    args.func(args.__dict__)
+
+    root = tk.Tk()
+
+    frames,out = args.func(args.__dict__)
+
+    label = tk.Label(root)
+    button = tk.Button(root,text="allo!")
+    label.grid(row = 0,column=0)
+    button.grid(row = 1,column = 0)
+    root.after(0, update, 0)
+    root.mainloop()
 
