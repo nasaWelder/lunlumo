@@ -118,16 +118,23 @@ def send(args):
         saved = qrPage.svg(pagePath)
         saved2 = qrPage.eps(pagePath+".eps",scale=4.5, module_color='#36C')
         i+=1
-    htmlfile = open(os.path.join(actualOutDir,"all.html"), "w")
+    if "htmlOutput" in args and args["htmlOutput"]:
+        args=dict(args)
+        args.update({"actualOutDir":actualOutDir,"numQR":numQR,"checksum":checksum})
+        htmlOutput(args)
+
+
+def htmlOutput(args):
+    htmlfile = open(os.path.join(args["actualOutDir"],"all.html"), "w")
     htmlfile.write("<!DOCTYPE html>\n<html>\n<body>\n")
     htmlfile.write('<table cellpadding="35">\n<tr><th>qrcode</th><th>file</th></tr>\n')
-    for filename in sorted(os.listdir(actualOutDir)):
+    for filename in sorted(os.listdir(args["actualOutDir"])):
         #print("filename: ", filename)
         if filename.endswith("of.svg"):
-            f2 = filename[:-4] + str(numQR) + filename[-4:]
-            os.rename(os.path.join(actualOutDir,filename), os.path.join(actualOutDir,f2))
+            f2 = filename[:-4] + str(args["numQR"]) + filename[-4:]
+            os.rename(os.path.join(args["actualOutDir"],filename), os.path.join(args["actualOutDir"],f2))
             htmlfile.write('<tr>\n')
-            htmlfile.write('<td><img src = "' + os.path.join(actualOutDir,f2) + '" alt ="cfg" align = "left" height="500" width="500"></td><td>%s</td>\n' % os.path.join(actualOutDir,f2))
+            htmlfile.write('<td><img src = "' + os.path.join(args["actualOutDir"],f2) + '" alt ="cfg" align = "left" height="500" width="500"></td><td>%s</td>\n' % os.path.join(args["actualOutDir"],f2))
             htmlfile.write('</tr>\n')
 
 
@@ -135,9 +142,9 @@ def send(args):
     htmlfile.write("</body>\n</html>\n")
     htmlfile.close()
 
-    loopfile = open(os.path.join(actualOutDir,"loop.html"), "w")
-    base = os.path.basename(args["infile"]) + "_" + str(checksum) + "_"
-    last = "of" + str(numQR) + ".svg"
+    loopfile = open(os.path.join(args["actualOutDir"],"loop.html"), "w")
+    base = os.path.basename(args["infile"]) + "_" + str(args["checksum"]) + "_"
+    last = "of" + str(args["numQR"]) + ".svg"
     firstImg = base + str(1) + last
     loopfile.write("""
 <html>
@@ -181,9 +188,9 @@ function() {
 </script>
 </body>
 </html>
-""" % {"outDir" : actualOutDir + "/" ,"firstImg": firstImg,"N" : numQR,"base" :base,"last":last.replace(".svg",""),"src": os.path.basename(args["infile"]),"check":checksum, "delay": args["delay"]})
+""" % {"outDir" : args["actualOutDir"] + "/" ,"firstImg": firstImg,"N" : args["numQR"],"base" :base,"last":last.replace(".svg",""),"src": os.path.basename(args["infile"]),"check":args["checksum"], "delay": args["delay"]})
     loopfile.close()
-    displayLoop(sendDir=actualOutDir)
+    displayLoop(sendDir=args["actualOutDir"])
 
 def stitch(args):
     actualOutDir =  os.path.realpath(os.path.join(args["outDir"],os.path.basename(args["infile"]) + ".QRstitched"))
@@ -249,6 +256,8 @@ sendParser.add_argument('--bytes', default=1000, choices=range(50, 2500), type=i
                     help='how many bytes to stuff in QR code.')
 sendParser.add_argument('--outDir', default="./",
                     help='dir to place QR code batch')
+sendParser.add_argument('--htmlOutput', action='store_true',
+                    help='old way: pop out a browser tab showing loop')
 sendParser.set_defaults(func=send)
 
 stitchParser = subparsers.add_parser("stitch")

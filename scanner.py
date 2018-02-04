@@ -18,24 +18,48 @@
 # picamera capture to PIL Image
 
 from io import BytesIO
-from time import sleep
+import time
 from picamera import PiCamera
 from PIL import Image
 import zbarlight
 
-def scan(verbose=False):
-    # Create the in-memory stream
-    stream = BytesIO()
-    camera = PiCamera()
-    camera.start_preview()
-    sleep(2)
-    camera.capture(stream, format='jpeg')
-    # "Rewind" the stream to the beginning so we can read its content
-    stream.seek(0)
-    image = Image.open(stream)
 
-    codes = zbarlight.scan_codes('qrcode', image)
-    if verbose:
-        print('QR codes: %s' % codes[0].decode("utf-8"))
 
-    return codes
+class Scanner(object):
+    def __init__(self,vebose=False):
+        self.verbose = verbose
+        self.camera = None
+
+    def start(self,):
+        self.camera = PiCamera()
+        time.sleep(1)
+        self.camera.start_preview(fullscreen=False, window = (100, 20, 640, 480)) # alpha = 255 rotation=0, vflip=False, hflip=False
+        # https://picamera.readthedocs.io/en/release-1.10/api_renderers.html?highlight=renderer#picamera.renderers.PiPreviewRenderer
+
+    def stop(self,):
+        if self.camera is not None:
+            #self.camera.stop_preview()
+            self.camera.close()
+        self.camera = None
+
+    def scan(self,verbose=False):
+        # Create the in-memory stream
+        stream = BytesIO()
+
+        self.camera.capture(stream, format='jpeg',use_video_port= False)   # perhaps change from jpeg to gif or png
+        ###
+        ''' The use_video_port parameter controls whether the camera’s image or video port is used to capture images.
+        It defaults to False which means that the camera’s image port is used. This port is slow but produces better
+         quality pictures. If you need rapid capture up to the rate of video frames, set this to True.'''
+        ###
+
+        # "Rewind" the stream to the beginning so we can read its content
+        stream.seek(0)
+        image = Image.open(stream)
+
+        codes = zbarlight.scan_codes('qrcode', image)
+        if verbose:
+            print('QR codes: %s' % codes[0].decode("utf-8"))
+
+        return codes
+

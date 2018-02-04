@@ -1,4 +1,4 @@
-# wallet-expect.py library for automating cli wallet
+# wallet_expect.py library for automating cli wallet
 # Copyright (C) 2017-2018  u/NASA_Welder
 """
     This program is free software: you can redistribute it and/or modify
