@@ -66,7 +66,7 @@ def send(args):
     actualOutDir =  os.path.realpath(os.path.join(args["outDir"],os.path.basename(args["infile"]) + ".QRbatch"))
     os.makedirs(actualOutDir)
 
-    bitPath = os.path.join(actualOutDir,'bits')
+    bitPath = os.path.join(actualOutDir,'bits')  # TODO get rid of a physical file for bits, just need the string
 
     with open(args["infile"], "rb") as source:
         with open(bitPath, 'wb') as dest:
@@ -116,8 +116,9 @@ def send(args):
         qrPage = pyqrcode.create(page,error="L")
         #print(qrPage.text())
         pagePath = os.path.join(actualOutDir,pageName)
-        if "htmlOutput" in args and args["htmlOutput"]: saved = qrPage.svg(pagePath + ".svg")
-        #saved2 = qrPage.eps(pagePath+".eps",scale=3.5,)
+        if "htmlOutput" in args and args["htmlOutput"]:
+            saved = qrPage.svg(pagePath + ".svg")
+            saved2 = qrPage.eps(pagePath+".eps",scale=3.5,)
         #frames.append( ImageTk.PhotoImage( Image.open( pagePath+".eps" ) ) )
         code = tk.BitmapImage(data=qrPage.xbm(scale=4))
         code.config(background="white")
@@ -278,15 +279,16 @@ if __name__ == "__main__":
     args = parser.parse_args()
     for arg in vars(args):
         print("\t%s\t\t%s"% (arg, getattr(args, arg)))
+    try:
+        root = tk.Tk()
 
-    root = tk.Tk()
+        frames,out = args.func(args.__dict__)
 
-    frames,out = args.func(args.__dict__)
-
-    label = tk.Label(root)
-    button = tk.Button(root,text="allo!")
-    label.grid(row = 0,column=0)
-    button.grid(row = 1,column = 0)
-    root.after(0, update, 0)
-    root.mainloop()
-
+        label = tk.Label(root)
+        button = tk.Button(root,text="allo!")
+        label.grid(row = 0,column=0)
+        button.grid(row = 1,column = 0)
+        root.after(0, update, 0)
+        root.mainloop()
+    except:
+        raise
