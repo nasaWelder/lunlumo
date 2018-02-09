@@ -47,6 +47,114 @@ import webbrowser as web
 
 # Monero donations to nasaWelder (babysitting money, so I can code!)
 # 48Zuamrb7P5NiBHrSN4ua3JXRZyPt6XTzWLawzK9QKjTVfsc2bUr1UmYJ44sisanuCJzjBAccozckVuTLnHG24ce42Qyak6
+
+class Lunlumo(tk.Frame):
+    def __init__(self, parent, *args, **kwargs):
+        tk.Frame.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+        self.sidebar = Sidebar(self)
+
+        self.sidebar.grid(row=0,column = 0)
+
+class Sidebar(tk.Frame):
+    def __init__(self, parent, *args, **kwargs):
+        tk.Frame.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+        self.logo = tk.PhotoImage(file = "misc/lunlumo8bitsmall.gif")
+        self.showLogo = tk.Label(image= self.logo)
+
+        self.showLogo.grid(row=0,column=0,sticky=tk.W)
+
+class Statusbar(tk.Frame):
+    def __init__(self, parent, *args, **kwargs):
+        tk.Frame.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+
+class PaneSelect(tk.Frame):
+    def __init__(self, parent, *args, **kwargs):
+        tk.Frame.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+
+class Pane(tk.Frame):
+    def __init__(self, parent, *args, **kwargs):
+        tk.Frame.__init__(self, parent, *args, **kwargs)
+        self.parent = parent
+
+class SendFrame(tk.Frame):
+    def __init__(self,app,parent,payloadType,payloadPath,PAGE_SIZE = 1000,delay = 1100,width = 475, height = 512,*args,**kargs):
+        tk.Frame.__init__(self,parent,height = height, width = width, *args,**kargs)
+        #global slides
+        self.app = app
+        self.checksum = crc(payloadPath)
+        self.skip = []
+        self.delay = delay
+        ##################################
+        # Create QR images
+        self.slides = []
+        self.codes = []
+        with open(payloadPath, "rb") as source:
+            self.payload = base64.b64encode(source.read())
+        j = 1
+        x = 0
+        while True:
+            chunk = self.payload[x: x+PAGE_SIZE]
+            if not chunk:
+              self.numQR = j-1
+              #print("\tQR codes:\t\t%s"%numQR)
+              break
+            if j>=1000:
+                raise Exception("file really got out of hand, exiting")
+            j+=1
+            x += PAGE_SIZE
+        i = 1
+        x = 0
+        while True:
+            chunk = self.payload[x: x+PAGE_SIZE]
+            if not chunk: break
+            heading = payloadType + "," + self.checksum + "," + str(i) + "/" + str(int(self.numQR)) + ":"
+            page = heading + b(chunk)
+            qrPage = pyqrcode.create(page,error="L")
+            #saved = qrPage.svg(heading.replace(",","_").replace(":","_").replace("/","_") + ".svg")
+            code = tk.BitmapImage(data=qrPage.xbm(scale=4))
+            code.config(background="white")
+            exec("self.i%s = code"% i)
+            self.slides.append(code)
+            i+=1
+            x += PAGE_SIZE
+        self.length = len(self.slides)
+        #################################
+
+        self.title = tk.Label(self,text = "Point Camera Here to Recieve: %s %s" % (payloadType,os.path.basename(payloadPath)))
+        self.crclbl = tk.Label(self,text = "crc32: %s" % self.checksum)
+        self.ticker = tk.Label(self,text = "X / X")
+        self.current = tk.Label(self)
+
+        self.title.grid(row=0,column = 0,columnspan=3,sticky=tk.W)
+        self.crclbl.grid(row=1,column = 0,sticky=tk.W,)
+        self.ticker.grid(row=1,column = 1,sticky=tk.W,)
+        self.current.grid(row=2,column = 0,columnspan=5,sticky=tk.W)
+    def refresh(self,ind):
+        while ind in self.skip:
+            ind += 1
+        slide = self.slides[ind]
+        self.ticker.configure(text = "%s / %s" % (ind+1,self.length))
+        ind += 1
+        self.current.configure(image=slide)
+        if ind == self.length: ind =0
+        self.app.after(self.delay, self.refresh, ind)
+
+
+
+
+
+
+
+
+
+
+################################
+################################
+### Legacy Functions
 def crc(fileName):
     prev = 0
     for eachLine in open(fileName,"rb"):
@@ -276,6 +384,21 @@ stitchParser.set_defaults(func=stitch)
 
 
 if __name__ == "__main__":
+
+    root = tk.Tk()
+    app = Lunlumo(root)
+    app.grid(row=0,column=0)
+    root.mainloop()
+    sys.exit(0)
+    root = tk.Tk()
+    sendme = SendFrame(root,root,"raw","signed_monero_tx",)
+    sendme.skip = [1,2,3,4,7,8,9,13,14,15,16,17,18,19]
+
+    sendme.grid(row=0,column=0,)
+    sendme.grid_propagate(False)
+    root.after(0,sendme.refresh,0)
+    root.mainloop()
+    sys.exit(0)
     args = parser.parse_args()
     for arg in vars(args):
         print("\t%s\t\t%s"% (arg, getattr(args, arg)))
@@ -292,3 +415,4 @@ if __name__ == "__main__":
         root.mainloop()
     except:
         raise
+

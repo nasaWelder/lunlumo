@@ -83,7 +83,7 @@ class Payload(object):
     def _use(self,match):
         index = int(match.group("rank")) - 1
         self.bin[index] = match.group("payload")
-        if self.verbose: print("found:",index)
+        #if self.verbose: print("found:",index)
 
     def digest(self,codes):
         if not self.bin:
@@ -92,7 +92,7 @@ class Payload(object):
                 if match:
                     self.bin = [0 for i in range(int(match.group("total")))]
                     self.crc = match.group("crc")
-                    self._use(match)
+                    #self._use(match)
                     self.pattern = re.compile(self.msgType + "," + self.crc + r",(?P<rank>[0-9]{1,3})/%s:(?P<payload>\S+)"% match.group("total"))
                     break
             self.digest(codes)
@@ -112,16 +112,19 @@ class Payload(object):
         finished = base64.b64decode(self.stitched())
         prev = 0
         prev = zlib.crc32(finished, prev)
-        actual_crc = "%x"%(prev & 0xFFFFFFFF)
-        return finished, bool(self.crc == actual_crc)
-
-
-
-
-
+        text_crc = "%x"%(prev & 0xFFFFFFFF)
+        return finished, bool(self.crc == text_crc)
 
     def toFile(self,path):
-        pass
+        data, success = self.prepared()
+        with open(path, 'wb') as dest:
+            dest.write(data)
+        prev = 0
+        for eachLine in open(path,"rb"):
+            prev = zlib.crc32(eachLine, prev)
+        actual_crc = "%x"%(prev & 0xFFFFFFFF)
+        return bool(self.crc == actual_crc)
+
     def __bool__(self):
         if self.bin:
             if not 0 in self.bin:
