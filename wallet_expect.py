@@ -206,6 +206,10 @@ class Wallet(object):
             self.haltAndCatchFire('Wallet Error! unexpected result in sign_transfer: %s' % (info))
         return info
 
+    def status(self,verbose = True):
+        info = self.walletCmd("status",verbose=verbose).strip()
+        return info
+
     def transferViewOnly(self,destAddress, amount, priority = "unimportant",autoConfirm = 0, verbose = True):
         outFile,info = self.export_outputs(outFileName = "outputs_from_viewonly")
 

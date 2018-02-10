@@ -22,10 +22,16 @@ if sys.version_info < (3,):
         return x
 else:
     import tkinter as tk
+    import tkinter
+    import tkinter.ttk as ttk
+    import tkinter.ttk
     #import codecs
     def b(x):
         #return codecs.latin_1_encode(x)[0]
         return x.decode("utf-8")
+
+## lunlumo libraries
+import wallet_expect as wex
 
 ## external libraries
 import pyqrcode
@@ -49,16 +55,21 @@ import webbrowser as web
 # 48Zuamrb7P5NiBHrSN4ua3JXRZyPt6XTzWLawzK9QKjTVfsc2bUr1UmYJ44sisanuCJzjBAccozckVuTLnHG24ce42Qyak6
 
 class Lunlumo(tk.Frame):
-    def __init__(self, parent, *args, **kwargs):
+    def __init__(self,app, parent,walletFile = None, password = '',daemonAddress = None, daemonHost = None,testnet = False,cold = True, *args, **kwargs):
         tk.Frame.__init__(self, parent, *args, **kwargs)
+        self.app = app
         self.parent = parent
-        self.sidebar = Sidebar(self)
+        self.wallet = wex.Wallet(walletFile, password,daemonAddress, daemonHost,testnet,cold,gui=True)
+        self.sidebar = Sidebar(app,self)
+        self.statusbar = Statusbar(app,self)
 
         self.sidebar.grid(row=0,column = 0)
+        self.statusbar.grid(row=2,column = 0, columnspan =3)
 
 class Sidebar(tk.Frame):
-    def __init__(self, parent, *args, **kwargs):
+    def __init__(self,app, parent, *args, **kwargs):
         tk.Frame.__init__(self, parent, *args, **kwargs)
+        self.app = app
         self.parent = parent
         self.logo = tk.PhotoImage(file = "misc/lunlumo8bitsmall.gif")
         self.showLogo = tk.Label(image= self.logo)
@@ -66,19 +77,94 @@ class Sidebar(tk.Frame):
         self.showLogo.grid(row=0,column=0,sticky=tk.W)
 
 class Statusbar(tk.Frame):
-    def __init__(self, parent, *args, **kwargs):
+    def __init__(self,app, parent,delay = 10000, *args, **kwargs):
         tk.Frame.__init__(self, parent, *args, **kwargs)
+        self.app = app
         self.parent = parent
+        self.delay = delay
+        self.status = tk.Label(self,text = "Checking Status...")
+        self.status.grid(row = 0, column =0)
+    def refresh(self):
+        if self.parent.wallet.ready:
+            now = self.parent.wallet.status()
+            self.status.configure(text = now)
+            self.app.after(self.delay,self.refresh)
+        else:
+            self.app.after(2000,self.refresh)
+
 
 class PaneSelect(tk.Frame):
-    def __init__(self, parent, *args, **kwargs):
+    def __init__(self,app, parent, *args, **kwargs):
         tk.Frame.__init__(self, parent, *args, **kwargs)
+        self.app = app
         self.parent = parent
 
 class Pane(tk.Frame):
-    def __init__(self, parent, *args, **kwargs):
+    def __init__(self,app, parent, *args, **kwargs):
         tk.Frame.__init__(self, parent, *args, **kwargs)
+        self.app = app
         self.parent = parent
+
+
+class MyWidget(tk.Frame):
+    def __init__(self,app, parent,handle,choices=None,allowEntry = False,optional = False,activeStart=1,ewidth = 8,cwidth = None, cmd = None, *args, **kwargs):
+        tk.Frame.__init__(self, parent, *args, **kwargs)
+        self.app = app
+        self.parent = parent
+        self.handle = handle
+        self.choices = choices
+        self.optional = optional
+        self.allowEntry = allowEntry
+        if self.optional:
+            self.optState = tk.IntVar()
+            self.optBut = tk.Checkbutton(self,variable = self.optState,onvalue = 1,offvalue=0,command = self._grey)
+            self.optBut.pack(side="left")
+        if isinstance(self.choices,__builtins__.list):
+            if not allowEntry:
+                state = "readonly"
+            else:
+                state = "enabled"
+            if not cwidth: cwidth = len(max(self.choices,key=len))
+            self.value = ttk.Combobox(self,values = self.choices,state = state,width=cwidth)
+            if cmd:
+                self.value.bind('<<ComboboxSelected>>',cmd)
+        if self.choices == "entry":
+            self.value = tk.Entry(self,width=ewidth)
+
+        self.title = tk.Label(self, text = self.handle)
+        self.title.pack(anchor = tk.E)
+        if self.choices:
+            self.value.pack(anchor = tk.E)
+        if self.optional:
+            if activeStart:
+                self.optState.set(1)
+
+    def get(self):
+        if self.choices:
+            return self.value.get()
+        elif self.optional:
+            if self.optState.get():
+                return self.handle
+            else:
+                return ""
+        #else:
+          #  raise Exception("Widget Error: Unknown value for %s" % self.handle)
+
+    def _grey(self):
+        if self.optional and self.choices:
+            if not self.optState.get():
+                self.value.config(state="disabled")
+            else:
+                if isinstance(self.value,tkinter.ttk.Combobox):
+                    if self.allowEntry:
+                        self.value.config(state="enabled")
+                    else:
+                        self.value.config(state="readonly")
+                else:
+                    self.value.config(state="enabled")
+
+
+
 
 class SendFrame(tk.Frame):
     def __init__(self,app,parent,payloadType,payloadPath,PAGE_SIZE = 1000,delay = 1100,width = 475, height = 512,*args,**kargs):
@@ -385,11 +471,26 @@ stitchParser.set_defaults(func=stitch)
 
 if __name__ == "__main__":
 
+    first = tk.Tk()
+    first.title("Wallet Options")
+    logo = tk.PhotoImage(file = "misc/lunlumo8bitsmall.gif")
+    showLogo = tk.Label(first,image= logo)
+    heading = tk.Label(first,text= "Wallet Options")
+    testnet = MyWidget(first,first,handle = "--testnet",choices=["blah","de","da"],allowEntry=1,optional = 1,)
+    showLogo.grid(row=0,column=0,sticky=tk.W)
+    heading.grid(row=0,column=1,sticky=tk.W)
+    testnet.grid(row=1,column=0,sticky=tk.W)
+
+    first.mainloop()
+    sys.exit(0)
+    #################################
+
     root = tk.Tk()
-    app = Lunlumo(root)
-    app.grid(row=0,column=0)
+    App = Lunlumo(root,root)
+    App.grid(row=0,column=0)
     root.mainloop()
     sys.exit(0)
+
     root = tk.Tk()
     sendme = SendFrame(root,root,"raw","signed_monero_tx",)
     sendme.skip = [1,2,3,4,7,8,9,13,14,15,16,17,18,19]
@@ -398,6 +499,7 @@ if __name__ == "__main__":
     sendme.grid_propagate(False)
     root.after(0,sendme.refresh,0)
     root.mainloop()
+    ########################################################
     sys.exit(0)
     args = parser.parse_args()
     for arg in vars(args):
