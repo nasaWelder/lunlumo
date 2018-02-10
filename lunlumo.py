@@ -40,6 +40,7 @@ from PIL import Image, ImageTk
 ##
 
 ## python stdlib
+from math import ceil
 import base64
 import argparse
 import hashlib
@@ -167,23 +168,31 @@ class MyWidget(tk.Frame):
 
 
 class SendFrame(tk.Frame):
-    def __init__(self,app,parent,payloadType,payloadPath,PAGE_SIZE = 1000,delay = 1100,width = 475, height = 512,*args,**kargs):
+    def __init__(self,app,parent,payloadType,payloadPath,PAGE_SIZE = 1000,delay = 1100,width = 350, height = 400,*args,**kargs):
         tk.Frame.__init__(self,parent,height = height, width = width, *args,**kargs)
         #global slides
         self.app = app
         self.checksum = crc(payloadPath)
         self.skip = []
         self.delay = delay
+        self.PAGE_SIZE = PAGE_SIZE
+        self.payloadType = payloadType
         ##################################
         # Create QR images
         self.slides = []
         self.codes = []
         with open(payloadPath, "rb") as source:
             self.payload = base64.b64encode(source.read())
+
+        self.numQR = ceil(len(self.payload)/self.PAGE_SIZE)
+        if self.numQR >= 1000:
+            raise Exception("%s QRs!! file really got out of hand, exiting"% self.numQR)
+
+        """
         j = 1
         x = 0
         while True:
-            chunk = self.payload[x: x+PAGE_SIZE]
+            chunk = self.payload[x: x+self.PAGE_SIZE]
             if not chunk:
               self.numQR = j-1
               #print("\tQR codes:\t\t%s"%numQR)
@@ -191,23 +200,12 @@ class SendFrame(tk.Frame):
             if j>=1000:
                 raise Exception("file really got out of hand, exiting")
             j+=1
-            x += PAGE_SIZE
-        i = 1
-        x = 0
-        while True:
-            chunk = self.payload[x: x+PAGE_SIZE]
-            if not chunk: break
-            heading = payloadType + "," + self.checksum + "," + str(i) + "/" + str(int(self.numQR)) + ":"
-            page = heading + b(chunk)
-            qrPage = pyqrcode.create(page,error="L")
-            #saved = qrPage.svg(heading.replace(",","_").replace(":","_").replace("/","_") + ".svg")
-            code = tk.BitmapImage(data=qrPage.xbm(scale=4))
-            code.config(background="white")
-            exec("self.i%s = code"% i)
-            self.slides.append(code)
-            i+=1
-            x += PAGE_SIZE
-        self.length = len(self.slides)
+            x += self.PAGE_SIZE
+        """
+        self.i = 1
+        self.x = 0
+        self.make_slides()
+
         #################################
 
         self.title = tk.Label(self,text = "Point Camera Here to Recieve: %s %s" % (payloadType,os.path.basename(payloadPath)))
@@ -219,14 +217,33 @@ class SendFrame(tk.Frame):
         self.crclbl.grid(row=1,column = 0,sticky=tk.W,)
         self.ticker.grid(row=1,column = 1,sticky=tk.W,)
         self.current.grid(row=2,column = 0,columnspan=5,sticky=tk.W)
+    def make_slides(self):
+        chunk = self.payload[self.x: self.x+self.PAGE_SIZE]
+        if chunk:
+            heading = self.payloadType + "," + self.checksum + "," + str(self.i) + "/" + str(int(self.numQR)) + ":"
+            page = heading + b(chunk)
+            qrPage = pyqrcode.create(page,error="L")
+            #saved = qrPage.svg(heading.replace(",","_").replace(":","_").replace("/","_") + ".svg")
+            code = tk.BitmapImage(data=qrPage.xbm(scale=3))
+            code.config(background="white")
+            #exec("self.i%s = code"% self.i)
+            self.slides.append(code)
+            self.i+=1
+            self.x += self.PAGE_SIZE
+            self.app.after(100, self.make_slides)
+
     def refresh(self,ind):
         while ind in self.skip:
             ind += 1
-        slide = self.slides[ind]
-        self.ticker.configure(text = "%s / %s" % (ind+1,self.length))
-        ind += 1
-        self.current.configure(image=slide)
-        if ind == self.length: ind =0
+        try:
+            slide = self.slides[ind]
+            self.ticker.configure(text = "%s / %s" % (ind+1,self.numQR))
+            self.current.configure(image=slide)
+        except IndexError:
+            ind = 0
+        else:
+            ind += 1
+        if ind >= self.numQR: ind =0
         self.app.after(self.delay, self.refresh, ind)
 
 
@@ -470,7 +487,7 @@ stitchParser.set_defaults(func=stitch)
 
 
 if __name__ == "__main__":
-
+    """
     first = tk.Tk()
     first.title("Wallet Options")
     logo = tk.PhotoImage(file = "misc/lunlumo8bitsmall.gif")
@@ -483,6 +500,7 @@ if __name__ == "__main__":
 
     first.mainloop()
     sys.exit(0)
+
     #################################
 
     root = tk.Tk()
@@ -490,7 +508,7 @@ if __name__ == "__main__":
     App.grid(row=0,column=0)
     root.mainloop()
     sys.exit(0)
-
+    """
     root = tk.Tk()
     sendme = SendFrame(root,root,"raw","signed_monero_tx",)
     sendme.skip = [1,2,3,4,7,8,9,13,14,15,16,17,18,19]
