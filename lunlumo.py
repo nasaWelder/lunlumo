@@ -25,6 +25,7 @@ else:
     import tkinter
     import tkinter.ttk as ttk
     import tkinter.ttk
+    import tkinter.filedialog as FileDialog
     #import codecs
     def b(x):
         #return codecs.latin_1_encode(x)[0]
@@ -55,9 +56,9 @@ import webbrowser as web
 # Monero donations to nasaWelder (babysitting money, so I can code!)
 # 48Zuamrb7P5NiBHrSN4ua3JXRZyPt6XTzWLawzK9QKjTVfsc2bUr1UmYJ44sisanuCJzjBAccozckVuTLnHG24ce42Qyak6
 
-class Lunlumo(tk.Frame):
+class Lunlumo(ttk.Frame):
     def __init__(self,app, parent,walletFile = None, password = '',daemonAddress = None, daemonHost = None,testnet = False,cold = True, *args, **kwargs):
-        tk.Frame.__init__(self, parent, *args, **kwargs)
+        ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
         self.wallet = wex.Wallet(walletFile, password,daemonAddress, daemonHost,testnet,cold,gui=True)
@@ -67,49 +68,94 @@ class Lunlumo(tk.Frame):
         self.sidebar.grid(row=0,column = 0)
         self.statusbar.grid(row=2,column = 0, columnspan =3)
 
-class Sidebar(tk.Frame):
+class Sidebar(ttk.Frame):
     def __init__(self,app, parent, *args, **kwargs):
-        tk.Frame.__init__(self, parent, *args, **kwargs)
+        ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
         self.logo = tk.PhotoImage(file = "misc/lunlumo8bitsmall.gif")
-        self.showLogo = tk.Label(image= self.logo)
+        self.showLogo = ttk.Label(image= self.logo)
 
         self.showLogo.grid(row=0,column=0,sticky=tk.W)
 
-class Statusbar(tk.Frame):
+class Statusbar(ttk.Frame):
     def __init__(self,app, parent,delay = 10000, *args, **kwargs):
-        tk.Frame.__init__(self, parent, *args, **kwargs)
+        ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
         self.delay = delay
-        self.status = tk.Label(self,text = "Checking Status...")
+        self.status = ttk.Label(self,text = "Checking Status...",style = "app.TLabel")
         self.status.grid(row = 0, column =0)
     def refresh(self):
         if self.parent.wallet.ready:
             now = self.parent.wallet.status()
             self.status.configure(text = now)
-            self.app.after(self.delay,self.refresh)
+            root.after(self.delay,self.refresh)
         else:
-            self.app.after(2000,self.refresh)
+            root.after(2000,self.refresh)
 
 
-class PaneSelect(tk.Frame):
+class PaneSelect(ttk.Frame):
     def __init__(self,app, parent, *args, **kwargs):
-        tk.Frame.__init__(self, parent, *args, **kwargs)
+        ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
 
-class Pane(tk.Frame):
+class Pane(ttk.Frame):
     def __init__(self,app, parent, *args, **kwargs):
-        tk.Frame.__init__(self, parent, *args, **kwargs)
+        ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
 
+class FilePicker(ttk.Frame):
+    def __init__(self,app, parent,handle,start = None,ftypes = [("all","*")],idir="./", *args, **kwargs):
+        tk.Frame.__init__(self, parent,highlightcolor = "white",highlightbackground = "white",highlightthickness=3,background ="#4C4C4C" , *args, **kwargs)
+        self.app = app
+        self.parent = parent
+        self.handle = handle
+        self.ftypes = ftypes
+        self.idir = idir
+        self.title = ttk.Label(self,text = self.handle,style = "app.TLabel")
+        self.selectVar = tk.StringVar()
+        self.selectVar.set("*")
+        if start: self.selectVar.set(start)
+        self.select = ttk.Label(self,textvariable = self.selectVar,wraplength=210,style = "app.TLabel")
+        self.button = ttk.Button(self,text = "Open",style = "app.TButton",command =self.dialog )
 
-class MyWidget(tk.Frame):
+        self.title.grid(row = 0,column = 0,ipadx=20)
+        self.button.grid(row = 0,column = 1,padx=6,pady = 6)
+        self.select.grid(row = 1,column = 0,sticky = tk.W,columnspan = 3,ipady=5)
+    def dialog(self):
+        choice = FileDialog.askopenfilename(filetypes=self.ftypes,initialdir = self.idir,title = self.handle)
+        if choice:
+            self.selectVar.set(choice)
+        else:
+            self.selectVar.set("*")
+    def get(self):
+        if self.selectVar.get() == "*":
+            return None
+        return self.selectVar.get()
+
+class Login(ttk.Frame):
+    def __init__(self,app, parent,*args, **kwargs):
+        ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
+        self.app = app
+        self.parent = parent
+
+        self.logo = tk.PhotoImage(file = "misc/legitmoonsmaller.gif")
+        self.showLogo = ttk.Label(self,image= self.logo,style = "app.TLabel")
+        #heading = ttk.Label(first,text= "Wallet Options",style = "app.TLabel")
+        self.testnet = MyWidget(first,self,handle = "--testnet",optional = 1,)
+        self.walletFile = FilePicker(first,self,"Wallet File",start = None,ftypes = [("full","*.keys"),("watchonly","*.keys-watchonly")],idir="./")
+        self._root().after(1000,print,"hello root")
+        self.showLogo.grid(row=0,column=0,rowspan=5,sticky=tk.W)
+        #self.heading.grid(row=0,column=1,sticky=tk.W)
+        self.testnet.grid(row=0,column=1,sticky=tk.W)
+        self.walletFile.grid(row=1,column=1,sticky=tk.W)
+
+class MyWidget(ttk.Frame):
     def __init__(self,app, parent,handle,choices=None,allowEntry = False,optional = False,activeStart=1,ewidth = 8,cwidth = None, cmd = None, *args, **kwargs):
-        tk.Frame.__init__(self, parent, *args, **kwargs)
+        ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
         self.handle = handle
@@ -118,7 +164,7 @@ class MyWidget(tk.Frame):
         self.allowEntry = allowEntry
         if self.optional:
             self.optState = tk.IntVar()
-            self.optBut = tk.Checkbutton(self,variable = self.optState,onvalue = 1,offvalue=0,command = self._grey)
+            self.optBut = ttk.Checkbutton(self,variable = self.optState,onvalue = 1,offvalue=0,command = self._grey,style = "app.TCheckbutton")
             self.optBut.pack(side="left")
         if isinstance(self.choices,__builtins__.list):
             if not allowEntry:
@@ -126,13 +172,13 @@ class MyWidget(tk.Frame):
             else:
                 state = "enabled"
             if not cwidth: cwidth = len(max(self.choices,key=len))
-            self.value = ttk.Combobox(self,values = self.choices,state = state,width=cwidth)
+            self.value = ttk.Combobox(self,values = self.choices,state = state,width=cwidth,style = "app.TCombobox")
             if cmd:
                 self.value.bind('<<ComboboxSelected>>',cmd)
         if self.choices == "entry":
-            self.value = tk.Entry(self,width=ewidth)
+            self.value = ttk.Entry(self,width=ewidth,)
 
-        self.title = tk.Label(self, text = self.handle)
+        self.title = ttk.Label(self, text = self.handle,style = "app.TLabel")
         self.title.pack(anchor = tk.E)
         if self.choices:
             self.value.pack(anchor = tk.E)
@@ -167,9 +213,9 @@ class MyWidget(tk.Frame):
 
 
 
-class SendFrame(tk.Frame):
+class SendFrame(ttk.Frame):
     def __init__(self,app,parent,payloadType,payloadPath,PAGE_SIZE = 1000,delay = 1100,width = 350, height = 400,*args,**kargs):
-        tk.Frame.__init__(self,parent,height = height, width = width, *args,**kargs)
+        ttk.Frame.__init__(self,parent,height = height, width = width,style = "app.TFrame", *args,**kargs)
         #global slides
         self.app = app
         self.checksum = crc(payloadPath)
@@ -208,10 +254,10 @@ class SendFrame(tk.Frame):
 
         #################################
 
-        self.title = tk.Label(self,text = "Point Camera Here to Recieve: %s %s" % (payloadType,os.path.basename(payloadPath)))
-        self.crclbl = tk.Label(self,text = "crc32: %s" % self.checksum)
-        self.ticker = tk.Label(self,text = "X / X")
-        self.current = tk.Label(self)
+        self.title = ttk.Label(self,text = "Point Camera Here to Recieve: %s %s" % (payloadType,os.path.basename(payloadPath)),style = "app.TLabel")
+        self.crclbl = ttk.Label(self,text = "crc32: %s" % self.checksum,style = "app.TLabel")
+        self.ticker = ttk.Label(self,text = "X / X",style = "app.TLabel")
+        self.current = ttk.Label(self,style = "app.TLabel")
 
         self.title.grid(row=0,column = 0,columnspan=3,sticky=tk.W)
         self.crclbl.grid(row=1,column = 0,sticky=tk.W,)
@@ -230,7 +276,7 @@ class SendFrame(tk.Frame):
             self.slides.append(code)
             self.i+=1
             self.x += self.PAGE_SIZE
-            self.app.after(100, self.make_slides)
+            root.after(100, self.make_slides)
 
     def refresh(self,ind):
         while ind in self.skip:
@@ -244,7 +290,7 @@ class SendFrame(tk.Frame):
         else:
             ind += 1
         if ind >= self.numQR: ind =0
-        self.app.after(self.delay, self.refresh, ind)
+        root.after(self.delay, self.refresh, ind)
 
 
 
@@ -487,29 +533,39 @@ stitchParser.set_defaults(func=stitch)
 
 
 if __name__ == "__main__":
-    """
     first = tk.Tk()
+    first.configure(bg="#F2681C")
     first.title("Wallet Options")
-    logo = tk.PhotoImage(file = "misc/lunlumo8bitsmall.gif")
-    showLogo = tk.Label(first,image= logo)
-    heading = tk.Label(first,text= "Wallet Options")
-    testnet = MyWidget(first,first,handle = "--testnet",choices=["blah","de","da"],allowEntry=1,optional = 1,)
-    showLogo.grid(row=0,column=0,sticky=tk.W)
-    heading.grid(row=0,column=1,sticky=tk.W)
-    testnet.grid(row=1,column=0,sticky=tk.W)
+    style = ttk.Style()
+    style.theme_use('clam') #('clam', 'alt', 'default', 'classic')
+    style.configure("app.TLabel", foreground="white", background="#4C4C4C")
+    style.configure("app.TFrame", foreground="white", background="#4C4C4C",)
+    style.configure("app.TButton", foreground="white", background="#F2681C")
+    style.configure("app.TCheckbutton", foreground="white", background="#4C4C4C")
+    style.configure("app.TCombobox", foreground="white", background="#F2681C")
 
+    login = Login(first,first)
+    login.pack()
     first.mainloop()
     sys.exit(0)
+
+
+
+
+
 
     #################################
 
     root = tk.Tk()
+
+
     App = Lunlumo(root,root)
     App.grid(row=0,column=0)
     root.mainloop()
     sys.exit(0)
     """
     root = tk.Tk()
+
     sendme = SendFrame(root,root,"raw","signed_monero_tx",)
     sendme.skip = [1,2,3,4,7,8,9,13,14,15,16,17,18,19]
 
@@ -517,6 +573,7 @@ if __name__ == "__main__":
     sendme.grid_propagate(False)
     root.after(0,sendme.refresh,0)
     root.mainloop()
+    """
     ########################################################
     sys.exit(0)
     args = parser.parse_args()
