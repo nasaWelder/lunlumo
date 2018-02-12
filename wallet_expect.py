@@ -60,7 +60,7 @@ class Wallet(object):
         self.walletFile = walletFile.split()[0]  #split is to defeat sneaky attack
         if not walletFile:
             raise Exception("Argument Error: Currently, this library does not automate wallet generation... maybe if you ask nicely we can add it")
-        if not password:
+        if not password and not self.gui:
             password = getpass.getpass(prompt="Password for %s:"%walletFile)
         self.walletArgs.extend(["--wallet-file",walletFile])
 

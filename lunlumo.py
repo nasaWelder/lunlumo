@@ -47,6 +47,7 @@ import argparse
 import hashlib
 import math
 import os
+import os.path
 #import Tkinter as tk
 from glob import glob
 
@@ -108,33 +109,52 @@ class Pane(ttk.Frame):
         self.parent = parent
 
 class FilePicker(ttk.Frame):
-    def __init__(self,app, parent,handle,start = None,ftypes = [("all","*")],idir="./", *args, **kwargs):
+    def __init__(self,app, parent,handle,start = None,buttonName = "Select",askPass = False,ftypes = [("all","*")],idir="./", *args, **kwargs):
         tk.Frame.__init__(self, parent,highlightcolor = "white",highlightbackground = "white",highlightthickness=3,background ="#4C4C4C" , *args, **kwargs)
         self.app = app
         self.parent = parent
         self.handle = handle
         self.ftypes = ftypes
         self.idir = idir
+        self.askPass = askPass
         self.title = ttk.Label(self,text = self.handle,style = "app.TLabel")
+        self.displayVar = tk.StringVar()
+        self.displayVar.set("*")
         self.selectVar = tk.StringVar()
-        self.selectVar.set("*")
-        if start: self.selectVar.set(start)
-        self.select = ttk.Label(self,textvariable = self.selectVar,wraplength=210,style = "app.TLabel")
-        self.button = ttk.Button(self,text = "Open",style = "app.TButton",command =self.dialog )
+        self.selectVar.set("")
+        self.passlbl = ttk.Label(self,text = "password:",style = "app.TLabel")
+        self.password = tk.Entry(self,text = self.handle,insertofftime=5000,show = "*",width = 13,foreground = "white")
+        if start:
+            self.selectVar.set(start)
+            self.displayVar.set(os.path.basename(choice))
+        self.select = ttk.Label(self,textvariable = self.displayVar,wraplength=210,style = "app.TLabel")
+        self.button = ttk.Button(self,text = buttonName,style = "app.TButton",command =self.dialog )
 
-        self.title.grid(row = 0,column = 0,ipadx=20)
+        self.title.grid(row = 0,column = 0,padx=(5,0))
         self.button.grid(row = 0,column = 1,padx=6,pady = 6)
-        self.select.grid(row = 1,column = 0,sticky = tk.W,columnspan = 3,ipady=5)
+        self.select.grid(row = 1,column = 0,sticky = tk.W,columnspan = 3,padx=(5,0),pady=(0,3))
+        if self.askPass:
+            self.passlbl.grid(row = 2,column = 0,sticky = tk.W,padx=(5,5))
+            self.password.grid(row = 2,column = 1,sticky = tk.W,padx=(0,0),pady = (0,8))
+
     def dialog(self):
         choice = FileDialog.askopenfilename(filetypes=self.ftypes,initialdir = self.idir,title = self.handle)
+        self.password.delete(0,tk.END)
         if choice:
+            self.displayVar.set(os.path.basename(choice))
             self.selectVar.set(choice)
         else:
-            self.selectVar.set("*")
+            self.displayVar.set("*")
+            self.selectVar.set("")
     def get(self):
-        if self.selectVar.get() == "*":
-            return None
-        return self.selectVar.get()
+        if not self.askPass:
+            if self.selectVar.get() == "":
+                return None
+            return self.selectVar.get()
+        else:
+            if self.selectVar.get() == "":
+                return None,None
+            return self.selectVar.get(),self.password.get()
 
 class Login(ttk.Frame):
     def __init__(self,app, parent,*args, **kwargs):
@@ -143,18 +163,32 @@ class Login(ttk.Frame):
         self.parent = parent
 
         self.logo = tk.PhotoImage(file = "misc/legitmoonsmaller.gif")
-        self.showLogo = ttk.Label(self,image= self.logo,style = "app.TLabel")
+        self.showLogo = ttk.Label(self,image= self.logo,style = "app.TLabel",cursor = "shuttle")
         #heading = ttk.Label(first,text= "Wallet Options",style = "app.TLabel")
-        self.testnet = MyWidget(first,self,handle = "--testnet",optional = 1,)
-        self.walletFile = FilePicker(first,self,"Wallet File",start = None,ftypes = [("full","*.keys"),("watchonly","*.keys-watchonly")],idir="./")
-        self._root().after(1000,print,"hello root")
-        self.showLogo.grid(row=0,column=0,rowspan=5,sticky=tk.W)
+        self.walletFile = FilePicker(self.app,self,"Wallet File",askPass = True,start = None,ftypes = [("full","*.keys"),("watchonly","*.keys-watchonly")],idir="./")
+        self.testnet = MyWidget(self.app,self,handle = "testnet",optional = 1,)
+        self.launch = ttk.Button(self,text = "Launch!",style = "app.TButton",command =self.launch,cursor = "shuttle" )
+        #MyWidget(app, parent,handle,choices=None,subs = {},allowEntry = False,optional = False,activeStart=1,ewidth = 8,cwidth = None, cmd = None)
+        self.daemon = MyWidget(self.app,self,handle = "daemon",choices = ["None (cold wallet)","external default","daemonHost","daemonAddress"],allowEntry = False, \
+                               subs={"daemonHost":{"handle":"host","choices":"entry","ewidth":20,"allowEntry":False},  # allowEntry is for comboboxes when choices is a list
+                                     "daemonAddress":{"handle":"host","choices":"entry","ewidth":20,"allowEntry":False,
+                                                       "subs":{"entry":{"handle":"port","choices":"entry","ewidth":20,"allowEntry":False}},
+                                                      },
+                                     })
+
+        self.showLogo.grid(row=0,column=0,rowspan=1,sticky=tk.NW,columnspan=2)
         #self.heading.grid(row=0,column=1,sticky=tk.W)
-        self.testnet.grid(row=0,column=1,sticky=tk.W)
-        self.walletFile.grid(row=1,column=1,sticky=tk.W)
+        self.walletFile.grid(row=1,column=0,sticky=tk.NW,padx=5,pady=(5,0),columnspan=2)
+        self.testnet.grid(row=3,column=0,sticky=tk.NW,padx=(5,0),pady=10)
+        self.launch.grid(row=3,column=1,sticky=tk.NW,padx=(5,0),pady= 5)
+        self.daemon.grid(row=2,column=0,pady=(10,15),rowspan=1,columnspan=2)
+    def launch(self):
+        vals = {"walletFile": self.walletFile.get(),"testnet":self.testnet.get(),"daemon":self.daemon.get()}
+        print(vals)
+        return vals
 
 class MyWidget(ttk.Frame):
-    def __init__(self,app, parent,handle,choices=None,allowEntry = False,optional = False,activeStart=1,ewidth = 8,cwidth = None, cmd = None, *args, **kwargs):
+    def __init__(self,app, parent,handle,choices=None,subs = {},allowEntry = False,optional = False,activeStart=1,ewidth = 8,cwidth = None, cmd = None, *args, **kwargs):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
@@ -162,6 +196,9 @@ class MyWidget(ttk.Frame):
         self.choices = choices
         self.optional = optional
         self.allowEntry = allowEntry
+        self.cmd = cmd
+        self.subs = subs
+        self.sub = None
         if self.optional:
             self.optState = tk.IntVar()
             self.optBut = ttk.Checkbutton(self,variable = self.optState,onvalue = 1,offvalue=0,command = self._grey,style = "app.TCheckbutton")
@@ -173,10 +210,10 @@ class MyWidget(ttk.Frame):
                 state = "enabled"
             if not cwidth: cwidth = len(max(self.choices,key=len))
             self.value = ttk.Combobox(self,values = self.choices,state = state,width=cwidth,style = "app.TCombobox")
-            if cmd:
-                self.value.bind('<<ComboboxSelected>>',cmd)
+            self.value.bind('<<ComboboxSelected>>',self.findSubs)
         if self.choices == "entry":
-            self.value = ttk.Entry(self,width=ewidth,)
+            self.value = ttk.Entry(self,width=ewidth,style = "app.TEntry")
+            self._root().after(0,self.findSubs)
 
         self.title = ttk.Label(self, text = self.handle,style = "app.TLabel")
         self.title.pack(anchor = tk.E)
@@ -187,17 +224,47 @@ class MyWidget(ttk.Frame):
                 self.optState.set(1)
 
     def get(self):
+        #print(self.handle,self.sub,bool(self.sub))
         if self.choices:
-            return self.value.get()
+            if self.sub:
+                val = [self.value.get()]
+                try:
+                    val.extend(self.sub.get())
+                except TypeError:
+                    print(self.handle,self.sub,bool(self.sub))
+                return val
+            return [self.value.get()]
         elif self.optional:
             if self.optState.get():
-                return self.handle
+                if self.sub:
+                    val = [self.value.get()]
+                    try:
+                        val.extend(self.sub.get())
+                    except TypeError:
+                        print(self.handle,self.sub,bool(self.sub))
+                    return val
+                return [self.handle]
             else:
-                return ""
+                return None
         #else:
           #  raise Exception("Widget Error: Unknown value for %s" % self.handle)
+    def findSubs(self,event = None):
+        if self.sub:
+            self.sub.destroy()
+            self.sub = None
+        if self.subs:
+            if self.value.get() in self.subs and not self.choices == "entry":
+                self.sub = MyWidget(self.app,self,**self.subs[self.value.get()])
+                self.sub.pack(anchor = tk.E,pady=3)
+            elif self.choices == "entry":
+                self.sub = MyWidget(self.app,self,**self.subs["entry"])
+                self.sub.pack(anchor = tk.E,pady=3)
+            else:
+                pass
+        if self.cmd:
+            self.cmd()
 
-    def _grey(self):
+    def _grey(self,override = False):
         if self.optional and self.choices:
             if not self.optState.get():
                 self.value.config(state="disabled")
@@ -209,6 +276,8 @@ class MyWidget(ttk.Frame):
                         self.value.config(state="readonly")
                 else:
                     self.value.config(state="enabled")
+        if self.sub:
+            self.sub._grey()
 
 
 
@@ -540,9 +609,11 @@ if __name__ == "__main__":
     style.theme_use('clam') #('clam', 'alt', 'default', 'classic')
     style.configure("app.TLabel", foreground="white", background="#4C4C4C")
     style.configure("app.TFrame", foreground="white", background="#4C4C4C",)
-    style.configure("app.TButton", foreground="white", background="#F2681C")
+    style.configure("app.TButton", foreground="white", background="#F2681C",activeforeground ="#F2681C" )
     style.configure("app.TCheckbutton", foreground="white", background="#4C4C4C")
-    style.configure("app.TCombobox", foreground="white", background="#F2681C")
+    style.configure("app.TCombobox", background="#F2681C")
+    style.configure("app.TEntry", foreground="black", background="white")
+    style.configure("pass.TEntry", foreground="white", background="white",insertofftime=5000)
 
     login = Login(first,first)
     login.pack()
