@@ -118,17 +118,20 @@ class Wallet(object):
         self.cmdMonero = os.path.join(MONERO_DIR,"monero-wallet-cli")
         if self.testnet: print("self.cmdMonero: ",self.cmdMonero)
         self.child = pexpect.spawn(self.cmdMonero + ' ' + ''.join(arg + ' ' for arg in self.walletArgs),encoding= ENCODING)
-        i = self.child.expect([pexpect.TIMEOUT, WALLET_SYNCED_PROMPT, WALLET_NODAEMON_PROMPT], timeout = self.TIMEOUT)
-        if i == 0: # Timeout
+        i = self.child.expect([pexpect.EOF,pexpect.TIMEOUT, WALLET_SYNCED_PROMPT, WALLET_NODAEMON_PROMPT], timeout = self.TIMEOUT)
+        if i == 0: # EOF
+            print(self.child.before.replace("\x1b[0m","").replace("\x1b[1;31m","").replace("\x1b[1;37m",""))
+            raise Exception(self.child.before.replace("\x1b[0m","").replace("\x1b[1;31m","").replace("\x1b[1;37m",""))
+        elif i == 1: # Timeout
             self.haltAndCatchFire('TIMEOUT ERROR! Wallet did not return within TIMEOUT limit %s' % self.TIMEOUT)
 
-        elif i == 1: # WALLET_SYNCED_PROMPT
+        elif i == 2: # WALLET_SYNCED_PROMPT
             if self.cold:
                 self.haltAndCatchFire('ROGUE SYNC ERROR! Cold Wallet was asked for, but the wallet found a daemon! YOUR SEED COULD BE COMPROMISED!!')
             else: # hot waller, expected (pun intended)
                 self.ready = True
 
-        elif i ==2: # WALLET_NODAEMON_PROMPT
+        elif i ==3: # WALLET_NODAEMON_PROMPT
             if not self.cold:
                 self.haltAndCatchFire('No Sync Error: wallet returned without finding daemon')
             else:
@@ -206,8 +209,16 @@ class Wallet(object):
             self.haltAndCatchFire('Wallet Error! unexpected result in sign_transfer: %s' % (info))
         return info
 
-    def status(self,verbose = True):
-        info = self.walletCmd("status",verbose=verbose).strip()
+    def status(self,verbose = True,refresh = False):
+        if refresh:
+            self.walletCmd("refresh",verbose=verbose)
+        info = self.walletCmd("status",verbose=verbose)
+        info = info.replace("status","").replace("\r\n","")
+        return info
+
+    def balance(self,verbose = True):
+        info = self.walletCmd("balance",verbose=verbose)
+        info = info.replace("balance","",1).replace("\r\n","")
         return info
 
     def transferViewOnly(self,destAddress, amount, priority = "unimportant",autoConfirm = 0, verbose = True):
@@ -251,7 +262,7 @@ class Wallet(object):
             if verbose:
                 print(self.child.before,end="")
                 print(self.child.after,end="")
-            return self.child.before
+            return self.child.before.replace("\x1b[0m","").replace("\x1b[1;31m","").replace("\x1b[1;37m","").replace("\x1b[1;33m","").strip()
 
     def getConfirmation(self,context,autoConfirm,verbose):
         self.autoConfirm = autoConfirm
