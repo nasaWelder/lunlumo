@@ -31,6 +31,7 @@ import os
 import os.path
 import time
 import getpass
+import re
 
 # ./monero-wallet-cli --wallet-file testview --testnet --daemon-address testnet.kasisto.io:28081 --command transfer A16nFcW5XuU6Hm2owV4g277yWjjY6cVZy5YgE15HS6C8JujtUUP51jP7pBECqk78QW8K78yNx9LB4iB8jY3vL8vw3JhiQuX 1
 
@@ -56,7 +57,7 @@ class Wallet(object):
         self.ready = False
         self.TIMEOUT = 300   # may need to bump this up if using new wallets
         self.walletArgs = []
-
+        self.addressPattern = re.compile(r"[489][a-zA-Z0-9]{94}") # TODO remove chars not found in addresses, testnet subaddresses?
         self.walletFile = walletFile.split()[0]  #split is to defeat sneaky attack
         if not walletFile:
             raise Exception("Argument Error: Currently, this library does not automate wallet generation... maybe if you ask nicely we can add it")
@@ -221,8 +222,13 @@ class Wallet(object):
         info = info.replace("balance","",1).replace("\r\n","")
         return info
 
-    def transferViewOnly(self,destAddress, amount, priority = "unimportant",autoConfirm = 0, verbose = True):
-        outFile,info = self.export_outputs(outFileName = "outputs_from_viewonly")
+    def address(self,verbose = True):
+        info = self.walletCmd("address",verbose=verbose)
+        matches = re.findall(self.addressPattern,info)
+        #info = info.replace("address","",1).replace("\r\n","")
+        return matches
+    #def transferViewOnly(self,destAddress, amount, priority = "unimportant",autoConfirm = 0, verbose = True):
+    #
 
     def walletCmd(self,cmd,autoConfirm = False,verbose = True,NOP = False):
         self.filterBuffer = ""

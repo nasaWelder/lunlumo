@@ -59,26 +59,44 @@ import webbrowser as web
 # 48Zuamrb7P5NiBHrSN4ua3JXRZyPt6XTzWLawzK9QKjTVfsc2bUr1UmYJ44sisanuCJzjBAccozckVuTLnHG24ce42Qyak6
 
 class Lunlumo(ttk.Frame):
-    def __init__(self,app, parent,walletFile = None, password = '',daemonAddress = None, daemonHost = None,testnet = False,cold = True, *args, **kwargs):
+    def __init__(self,app, parent,walletFile = None, password = '',background ="misc/genericspace.gif",daemonAddress = None, daemonHost = None,testnet = False,cold = True, *args, **kwargs):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
         self.wallet = wex.Wallet(walletFile, password,daemonAddress, daemonHost,testnet,cold,gui=True)
-        self.sidebar = Sidebar(app,self)
-        self.statusbar = Statusbar(app,self)
+        if background:
+            self.bg = tk.PhotoImage(file = background)
+            self.bglabel = tk.Label(self, image=self.bg)
+            self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
+        try:
+            self.sidebar = Sidebar(app,self)
+            self.statusbar = Statusbar(app,self)
+            self.receivepage = Receive(self,self,background =background )
 
-        self.sidebar.grid(row=0,column = 0)
-        self.statusbar.grid(row=2,column = 0, columnspan =3)
+            self.sidebar.grid(row=0,column = 0,sticky=tk.NW)
+            self.statusbar.grid(row=2,column = 0, columnspan =3,sticky=tk.W+tk.E)
+            self.receivepage.grid(row=0,column = 1 ,sticky=tk.W+tk.E,padx=(20,20),pady=(20,20))
+            #self._root().after(100,self.receivepage.grid_propagate,False)
+        except:
+            self.wallet.stopWallet()
 
 class Sidebar(ttk.Frame):
-    def __init__(self,app, parent, delay = 21000, *args, **kwargs):
+    def __init__(self,app, parent, delay = 21000,background = "misc/genericspace.gif", *args, **kwargs):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
         self.delay = delay
-        self.logo = tk.PhotoImage(file = "misc/lunlumo8bitsmall.gif")
+        if background:
+            self.bg = tk.PhotoImage(file = background)
+            self.bglabel = tk.Label(self, image=self.bg)
+            self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
+        self.logo = tk.PhotoImage(file = "misc/legitmoonsmaller.gif")
         self.showLogo = ttk.Label(self,image= self.logo)
         self.balFrame =  tk.Frame(self,highlightcolor = "white",highlightbackground = "white",highlightthickness=3,background ="#4C4C4C")
+        if background:
+            self.balbg = tk.PhotoImage(file = background)
+            self.balbglabel = tk.Label(self.balFrame, image=self.bg)
+            self.balbglabel.place(x=0, y=0, relwidth=1, relheight=1)
         self.balance = ttk.Label(self.balFrame,text = "Balance:   X.XXXXXXXXXXXX",style = "app.TLabel",)
         self.unlocked = ttk.Label(self.balFrame,text ="Unlocked: X.XXXXXXXXXXXX",style = "app.TLabel",)
         self.balance.grid(row=0,column=0,sticky=tk.W,padx =(5,0),pady=(5,1))
@@ -98,10 +116,14 @@ class Sidebar(ttk.Frame):
         else:
             self._root().after(5000,self.refresh)
 class Statusbar(ttk.Frame):
-    def __init__(self,app, parent,delay = 55000, *args, **kwargs):
+    def __init__(self,app, parent,delay = 55000,background = "misc/genericspace.gif", *args, **kwargs):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
+        if background:
+            self.bg = tk.PhotoImage(file = background)
+            self.bglabel = tk.Label(self, image=self.bg)
+            self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
         self.delay = delay
         self.status = ttk.Label(self,text = "Checking Status...",style = "app.TLabel")
         self.status.grid(row = 0, column =0)
@@ -122,13 +144,65 @@ class PaneSelect(ttk.Frame):
         self.parent = parent
 
 class Pane(ttk.Frame):
-    def __init__(self,app, parent, *args, **kwargs):
+    def __init__(self,app, parent,background = None,name = None, *args, **kwargs):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
+        if background:
+            self.bg = tk.PhotoImage(file = background)
+            self.bglabel = tk.Label(self, image=self.bg)
+            self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
+
+class Receive(ttk.Frame):
+    def __init__(self,app, parent,coin="monero",background = None, *args, **kwargs):
+        ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
+        self.app = app
+        self.parent = parent
+        self.coin = coin
+        if background:
+            self.bg = tk.PhotoImage(file = background)
+            self.bglabel = tk.Label(self, image=self.bg)
+            self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
+        self.heading = ttk.Label(self,text = "Receive",style = "heading.TLabel")
+        self.addresses = self.getAddresses()
+        self.textAddress = MyWidget(self.app,self,handle = "Address",choices = self.addresses,cwidth = 50,startVal =  self.addresses[0] )
+        self.amountVar = tk.StringVar()
+        self.amount = MyWidget(self.app,self,handle = "Amount",choices = "entry",optional = True,activeStart=False)
+        self.amount.value.configure(textvariable = self.amountVar)
+        self.amountVar.trace("w", lambda name, index, mode, sv=self.amountVar: self.amountCallback(sv))
+        self.amount.optState.trace("w", lambda name, index, mode, sv=self.amountVar: self.amountCallback(sv))
+        self.qr = ttk.Label(self,style = "app.TLabel")
+        self.genQR()
+
+        self.heading.grid(row=0,column=0,sticky = tk.W,pady= (10,20))
+        self.textAddress.grid(row=1,column=0,columnspan = 2,sticky = tk.W)
+        self.amount.grid(row=2,column=0,sticky = tk.E,pady= (10,0))
+        self.qr.grid(row=3,column=0,sticky = tk.W,padx=(30,0),pady= (30,50))
+
+    def getAddresses(self):
+        addlist = self.app.wallet.address()
+        return addlist
+
+    def amountCallback(self,event = None,arg = None):
+        self.grid_propagate(False)
+        self._root().after(400,self.genQR)
+
+    def genQR(self):
+        msg = self.coin + ":" + self.textAddress.get()[0]
+        if self.amount.get()[0] and self.amount.optState.get():
+            try:
+                msg += "?tx_amount=" + str(float(self.amount.get()[0]))
+            except ValueError as e:
+                MessageBox.showerror("Amount Error",str(e))
+        self.qrPage = pyqrcode.create(msg,error="L")
+        self.code = tk.BitmapImage(data=self.qrPage.xbm(scale=5))
+        self.code.config(background="white")
+        self.qr.config(image = self.code)
+
+
 
 class FilePicker(ttk.Frame):
-    def __init__(self,app, parent,handle,start = None,buttonName = "Select",askPass = False,ftypes = [("all","*")],idir="./", *args, **kwargs):
+    def __init__(self,app, parent,handle,start = None,buttonName = "Select",askPass = False,background = None,ftypes = [("all","*")],idir="./", *args, **kwargs):
         tk.Frame.__init__(self, parent,highlightcolor = "white",highlightbackground = "white",highlightthickness=3,background ="#4C4C4C" , *args, **kwargs)
         self.app = app
         self.parent = parent
@@ -136,6 +210,12 @@ class FilePicker(ttk.Frame):
         self.ftypes = ftypes
         self.idir = idir
         self.askPass = askPass
+
+        if background:
+            self.bg = tk.PhotoImage(file = background)
+            self.bglabel = tk.Label(self, image=self.bg)
+            self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
+
         self.title = ttk.Label(self,text = self.handle,style = "app.TLabel")
         self.displayVar = tk.StringVar()
         self.displayVar.set("*")
@@ -176,16 +256,21 @@ class FilePicker(ttk.Frame):
             return self.selectVar.get(),self.password.get()
 
 class Login(ttk.Frame):
-    def __init__(self,app, parent,*args, **kwargs):
+    def __init__(self,app, parent,background = None,*args, **kwargs):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
         self.final = None
 
+        if background:
+            self.bg = tk.PhotoImage(file = background)
+            self.bglabel = tk.Label(self, image=self.bg)
+            self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
+
         self.logo = tk.PhotoImage(file = "misc/legitmoonsmaller.gif")
         self.showLogo = ttk.Label(self,image= self.logo,style = "app.TLabel",cursor = "shuttle")
         #heading = ttk.Label(first,text= "Wallet Options",style = "app.TLabel")
-        self.walletFile = FilePicker(self.app,self,"Wallet File",askPass = True,start = None,ftypes = [("full","*.keys"),("watchonly","*.keys-watchonly")],idir="./")
+        self.walletFile = FilePicker(self.app,self,"Wallet File",askPass = True,start = None,background = "misc/genericspace.gif",ftypes = [("full","*.keys"),("watchonly","*.keys-watchonly")],idir="./")
         self.testnet = MyWidget(self.app,self,handle = "testnet",optional = 1,)
         self.launch = ttk.Button(self,text = "Launch!",style = "app.TButton",command =self.launch,cursor = "shuttle" )
         #MyWidget(app, parent,handle,choices=None,subs = {},allowEntry = False,optional = False,activeStart=1,ewidth = 8,cwidth = None, cmd = None)
@@ -223,7 +308,7 @@ class Login(ttk.Frame):
 
 
 class MyWidget(ttk.Frame):
-    def __init__(self,app, parent,handle,choices=None,subs = {},startVal = None,allowEntry = False,
+    def __init__(self,app, parent,handle,choices=None,subs = {},startVal = None,allowEntry = False,static = False, background = "misc/genericspace.gif",
                  cipadx = 0,optional = False,activeStart=1,ewidth = 8,cwidth = None, cmd = None, *args, **kwargs):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
@@ -236,6 +321,12 @@ class MyWidget(ttk.Frame):
         self.cmd = cmd
         self.subs = subs
         self.sub = None
+
+        if background:
+            self.bg = tk.PhotoImage(file = background)
+            self.bglabel = tk.Label(self, image=self.bg)
+            self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
+
         if self.optional:
             self.optState = tk.IntVar()
             self.optBut = ttk.Checkbutton(self,variable = self.optState,onvalue = 1,offvalue=0,command = self._grey,style = "app.TCheckbutton")
@@ -249,11 +340,12 @@ class MyWidget(ttk.Frame):
             self.value = ttk.Combobox(self,values = self.choices,state = state,width=cwidth,style = "app.TCombobox")
             self.value.bind('<<ComboboxSelected>>',self.findSubs)
         if self.choices == "entry":
-            self.value = ttk.Entry(self,width=ewidth,style = "app.TEntry")
+            state = "enabled" if not static else "readonly"
+            self.value = ttk.Entry(self,width=ewidth,style = "app.TEntry",state = state)
             self._root().after(0,self.findSubs)
 
         self.title = ttk.Label(self, text = self.handle,style = "app.TLabel")
-        self.title.pack(anchor = tk.E)
+        self.title.pack(anchor = tk.W)
         if self.choices:
             self.value.pack(anchor = tk.E,ipadx = cipadx)
             if self.startVal:
@@ -286,8 +378,10 @@ class MyWidget(ttk.Frame):
                 return [self.handle]
             else:
                 return None
-        #else:
-          #  raise Exception("Widget Error: Unknown value for %s" % self.handle)
+        else:
+            print("someone tried to get:%s" %self.handle)
+            return
+            [self.value.get()]
     def findSubs(self,event = None):
         if self.sub:
             self.sub.destroy()
@@ -639,35 +733,67 @@ stitchParser.add_argument('--outDir', default="./",
                     help='dir to place stitched together file')
 stitchParser.set_defaults(func=stitch)
 
+"""
+Noto Sans Ogham
+OpenSymbol
+Noto Sans Lepcha
+Noto Serif Thai
+Noto Sans Javanese
+DejaVu Sans Mono
+Noto Sans Cherokee
+KacstTitleL
+Noto Sans Syriac Eastern
+DejaVu Sans
+Liberation Mono
+Liberation Mono
+Liberation Mono
+Noto Sans Meetei Mayek
+Noto Sans Symbols
+Ubuntu
+Tlwg Typo
+"""
 
 
 if __name__ == "__main__":
     first = tk.Tk()
     first.configure(bg="#F2681C")
+    first.geometry("%dx%d%+d%+d" % (400, 500, 300, 150))  #(width, height, xoffset, yoffset)
+    bg = tk.PhotoImage(file = "misc/genericspace.gif")
+    bglabel = tk.Label(first, image=bg)
+    bglabel.bgimage = bg
+    bglabel.place(x=0, y=0, relwidth=1, relheight=1)
+
+    first.option_add('*TCombobox*Listbox.font', ('Liberation Mono','12','normal'))
+    first.option_add('*TCombobox*Entry.font', ('Liberation Mono','12','normal'))
     first.title("Wallet Options")
     style = ttk.Style()
     style.theme_use('clam') #('clam', 'alt', 'default', 'classic')
-    style.configure("app.TLabel", foreground="white", background="#4C4C4C")
+    style.configure("app.TLabel", foreground="white", background="black", font=('Liberation Mono','12','normal')) #"#4C4C4C")
+    style.configure("heading.TLabel", foreground="white", background="black",) #"#4C4C4C")
     style.configure("app.TFrame", foreground="white", background="#4C4C4C",)
-    style.configure("app.TButton", foreground="white", background="#F2681C",activeforeground ="#F2681C" )
-    style.configure("app.TCheckbutton", foreground="white", background="#4C4C4C")
-    style.configure("app.TCombobox", background="#F2681C")
-    style.configure("app.TEntry", foreground="black", background="white")
+    style.configure("app.TButton", foreground="white", background="#C6480E",activeforeground ="#F2681C",font=('Liberation Mono','12','normal') )#F2681C
+    style.configure("app.TCheckbutton", foreground="white", background="black") #"#4C4C4C")
+    style.configure("app.TCombobox", background="#F2681C",font=('Liberation Mono','12','normal'))
+    style.configure("app.TEntry", foreground="black", background="white",font=('Liberation Mono','12','normal'))
     style.configure("pass.TEntry", foreground="white", background="white",insertofftime=5000)
 
-    login = Login(first,first)
+    login = Login(first,first,background = "misc/genericspace.gif")
     login.pack()
+
     first.mainloop()
 
     #################################
     if login.final:
         root = tk.Tk()
+        #root.geometry("%dx%d%+d%+d" % (800, 500, 300, 150))  #(width, height, xoffset, yoffset)
+        root.title("Lunlumo     by NASA_Welder")
         style = ttk.Style()
         style.theme_use('clam') #('clam', 'alt', 'default', 'classic')
-        style.configure("app.TLabel", foreground="white", background="#4C4C4C")
+        style.configure("app.TLabel", foreground="white", background="black") #"#4C4C4C")
+        style.configure("heading.TLabel", foreground="white", background="black") #"#4C4C4C")
         style.configure("app.TFrame", foreground="white", background="#4C4C4C",)
-        style.configure("app.TButton", foreground="white", background="#F2681C",activeforeground ="#F2681C" )
-        style.configure("app.TCheckbutton", foreground="white", background="#4C4C4C")
+        style.configure("app.TButton", foreground="white", background="#C6480E",activeforeground ="#F2681C" )#F2681C
+        style.configure("app.TCheckbutton", foreground="white", background="black") #"#4C4C4C")
         style.configure("app.TCombobox", background="#F2681C")
         style.configure("app.TEntry", foreground="black", background="white")
         style.configure("pass.TEntry", foreground="white", background="white",insertofftime=5000)
@@ -676,8 +802,19 @@ if __name__ == "__main__":
             App = Lunlumo(root,root,**login.final)
         except Exception as e:
             MessageBox.showerror("Wallet Error",str(e))
+            raise
         else:
             App.grid(row=0,column=0)
+            """
+            sendme = SendFrame(root,root,"raw","signed_monero_tx",)
+            sendme.skip = [1,2,3,4,7,15,16,17,18,19]
+
+            sendme.grid(row=0,column=1,)
+            sendme.grid_propagate(False)
+
+            root.after(0,sendme.refresh,0)
+            root.after(10000,sendme.destroy)
+            """
         root.mainloop()
 
         App.wallet.stopWallet()
