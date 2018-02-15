@@ -57,7 +57,12 @@ class Wallet(object):
         self.ready = False
         self.TIMEOUT = 300   # may need to bump this up if using new wallets
         self.walletArgs = []
-        self.addressPattern = re.compile(r"[489][a-zA-Z0-9]{94}") # TODO remove chars not found in addresses, testnet subaddresses?
+
+        self.addressPattern = re.compile(r"[489A][a-zA-Z0-9]{94}") # TODO remove chars not found in addresses, testnet subaddresses?
+        self.address_bookPattern = re.compile(r"Index: [0-9]+\s+Address: [489A][a-zA-Z0-9]{94}\s+Payment ID: <[0-9]+>\s+Description:[\S ]*[\r\n]*")
+        self.address_bookPartsPattern = re.compile(r"Index: (?P<index>[0-9]+)\s+Address: (?P<address>[489A][a-zA-Z0-9]{94})\s+Payment ID: <(?P<payid>[0-9]+)>\s+Description:(?P<desc>[\S ]*)[\r\n]*")
+        self.balancePattern = re.compile(r"Balance: (?P<balance>[0-9\.]+), unlocked balance: (?P<unlocked>[0-9\.]+)")
+
         self.walletFile = walletFile.split()[0]  #split is to defeat sneaky attack
         if not walletFile:
             raise Exception("Argument Error: Currently, this library does not automate wallet generation... maybe if you ask nicely we can add it")
@@ -219,14 +224,39 @@ class Wallet(object):
 
     def balance(self,verbose = True):
         info = self.walletCmd("balance",verbose=verbose)
-        info = info.replace("balance","",1).replace("\r\n","")
-        return info
+        #info = info.replace("balance","",1).replace("\r\n","")
+        match = self.balancePattern.search(info)
+        if match:
+            return match.group("balance"),match.group("unlocked")
+        else:
+            return "X.XXXXXXXXXXXX","X.XXXXXXXXXXXX"
 
     def address(self,verbose = True):
         info = self.walletCmd("address",verbose=verbose)
         matches = re.findall(self.addressPattern,info)
         #info = info.replace("address","",1).replace("\r\n","")
         return matches
+
+    def address_book(self,verbose = True,add=None):
+        #add should be a tuple (<address>,<description>|None)
+        cmd = "address_book"
+        if add:
+            cmd += " add %s" % add[0]
+            if add[1]: # the description (optional)
+                cmd += " %s" % add[1]
+        info = self.walletCmd(cmd,verbose=verbose)
+        entries = re.findall(self.address_bookPattern,info)
+        book = []
+        for e in entries:
+            parts = self.address_bookPartsPattern.match(e)
+            entry = {"index":parts.group("index"),"address":parts.group("address"),"payid":parts.group("payid")}
+            if parts.group("desc") == "":
+                entry.update({"description":""})
+            else:
+                entry.update({"description":parts.group("desc")[1:]})
+            book.append(entry)
+        #info = info.replace("address","",1).replace("\r\n","")
+        return book
     #def transferViewOnly(self,destAddress, amount, priority = "unimportant",autoConfirm = 0, verbose = True):
     #
 
@@ -322,7 +352,10 @@ if __name__ == "__main__":
     hotwallet = Wallet(walletFile = os.path.join(MONERO_DIR,"testview"), password = '',daemonAddress = "testnet.kasisto.io:28081",testnet = True,cold = False)
     coldwallet = Wallet(walletFile = os.path.join(MONERO_DIR,"testnet"), password = '',testnet = True,cold = True,gui=True)
     hsleep = 2
-
+    p = coldwallet.address_book()
+    import pprint
+    pprint.pprint(p)
+    sys.exit(0)
     hotwallet.export_outputs()
     time.sleep(hsleep)
     coldwallet.import_outputs()
