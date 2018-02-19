@@ -29,24 +29,36 @@ else:
     def b(x):
         return x.decode("utf-8")
 
-if False: # TODO detect if raspi
+try:
     from picamera import PiCamera
-    class Scanner(object):
+except Exception as e:
+    print("\n\nUnable to import picamera!!\n\n")
+    print(str(e))
+else:
+    class Scanner_picamera(object):
         def __init__(self,verbose=False):
             self.verbose = verbose
             self.camera = None
 
         def start(self,):
-            self.camera = PiCamera()
-            time.sleep(1)
-            self.camera.start_preview(fullscreen=False, window = (100, 20, 640, 480)) # alpha = 255 rotation=0, vflip=False, hflip=False
-            # https://picamera.readthedocs.io/en/release-1.10/api_renderers.html?highlight=renderer#picamera.renderers.PiPreviewRenderer
+            if self.camera is None:
+                self.camera = PiCamera()
+                time.sleep(1)
+                #no preview because we can handle it in tkinter
+                #self.camera.start_preview(fullscreen=False, window = (100, 20, 640, 480)) # alpha = 255 rotation=0, vflip=False, hflip=False
+                # https://picamera.readthedocs.io/en/release-1.10/api_renderers.html?highlight=renderer#picamera.renderers.PiPreviewRenderer
 
         def stop(self,):
-            if self.camera is not None:
+            if not self.camera is None:
                 #self.camera.stop_preview()
                 self.camera.close()
             self.camera = None
+
+        def snapshot(self,snapshot_size = (256,256)):
+            thumb = self.still.copy()
+            thumb.thumbnail(snapshot_size,Image.ANTIALIAS)
+            #time.sleep(.25)
+            return thumb
 
         def scan(self,verbose=False):
             #### picamera capture to PIL Image
@@ -63,15 +75,71 @@ if False: # TODO detect if raspi
 
             # "Rewind" the stream to the beginning so we can read its content
             stream.seek(0)
-            image = Image.open(stream)
+            self.still = Image.open(stream)
 
-            codes = zbarlight.scan_codes('qrcode', image)
+            codes = zbarlight.scan_codes('qrcode', self.still)
             codes = [b(i) for i in codes]
             if verbose:
                 for i in codes:
                     print('QR code: %s' % i)
 
             return codes
+
+try:
+    import pygame
+    import pygame.camera
+    from pygame.locals import *
+except Exception as e:
+    print("\n\nUnable to import pygame (for v4l webcam support)!!\n\n")
+    print(str(e))
+else:
+    class Scanner_pygame(object):
+        def __init__(self,verbose=False,resolution = (640,480)):   #(640,480)
+            self.resolution = resolution
+            pygame.init()
+            pygame.camera.init()
+            time.sleep(1)
+            self.verbose = verbose
+            self.clist = pygame.camera.list_cameras()
+            print("Cameras Found: %s" % self.clist)
+            if not self.clist:
+                raise ValueError("Sorry, no cameras detected.")
+            self.camera = None
+
+        def start(self,):
+            if self.camera is None:
+                self.camera = pygame.camera.Camera(self.clist[0], self.resolution)
+                self.camera.start()
+                time.sleep(1)
+
+
+        def stop(self,):
+            if not self.camera is None:
+                self.camera.stop()
+            self.camera = None
+
+        def snapshot(self,snapshot_size = (256,256)):
+            thumb = self.still.copy()
+            thumb.thumbnail(snapshot_size,Image.ANTIALIAS)
+            #time.sleep(.25)
+            return thumb
+
+        def scan(self,verbose=False):
+            snap = self.camera.get_image()
+            pil_string_image = pygame.image.tostring(snap,"RGBA",False)
+            self.still = Image.frombytes("RGBA",self.resolution,pil_string_image)
+            codes = zbarlight.scan_codes('qrcode', self.still)
+            if codes:
+                codes = [b(i) for i in codes]
+                if self.verbose:
+                    for i in codes:
+                        print('QR code: %s\n\n' % i)
+                return codes
+
+            print("\n======\n\nNo QR Found\n\n======")
+            return None
+
+
 
 class Payload(object):
     def __init__(self,msgType,verbose=False):
@@ -135,6 +203,43 @@ class Payload(object):
         return self.__bool__()
 
 if __name__ == "__main__":
+    from PIL import ImageTk
+    def get_preview():
+        preview.img = ImageTk.PhotoImage(cam.snapshot())
+        preview.config(image = preview.img)
+        root.after(450,get_preview)
+
+    def get_scan():
+        codes = cam.scan()
+        if codes:
+            status.config(text = "found:  " + codes[0].split(":")[0])
+        else:
+            status.config(text = "Nothing Found")
+        root.attributes('-topmost', 1)
+        root.after(400,get_scan)
+
+    cam = Scanner_pygame(verbose = True)
+    cam.start()
+    import tkinter as tk
+    root = tk.Tk()
+    root.title("pygame QR code Scanner")
+    frame = tk.Frame(root)
+    frame.pack()
+    preview = tk.Label(frame)
+    preview.pack()
+    status = tk.Label(frame,text = "waiting for codes")
+    status.pack()
+    w, h = root.winfo_screenwidth(), root.winfo_screenheight()
+    root.geometry("256x%d+%d+%d" % (int(256*480/640+20),int(0),int(h-256*480/640+20)))
+
+    get_scan()
+    get_preview()
+
+    root.mainloop()
+    cam.stop()
+
+"""
+if __name__ == "__main__":
     import timeit
     import glob
     incoming = Payload("raw",verbose = True)
@@ -153,6 +258,7 @@ if __name__ == "__main__":
     finished,success = incoming.prepared()
     print(finished)
     print(success)
+"""
 
 
 

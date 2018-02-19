@@ -36,17 +36,21 @@ import re
 # ./monero-wallet-cli --wallet-file testview --testnet --daemon-address testnet.kasisto.io:28081 --command transfer A16nFcW5XuU6Hm2owV4g277yWjjY6cVZy5YgE15HS6C8JujtUUP51jP7pBECqk78QW8K78yNx9LB4iB8jY3vL8vw3JhiQuX 1
 
 MONERO_DIR = "/home/devarea/bin/monero-gui-v0.11.1.0/"
+#MONERO_DIR = "/home/devarea/bin/new_monero/"
 
 WALLET_SYNCED_PROMPT    = r"\[wallet [0-9A-Za-z]{6}\]:"                 # [wallet 9wXvk8]:
 WALLET_NODAEMON_PROMPT  = r"\[wallet [0-9A-Za-z]{6} \(no daemon\)\]:"     # [wallet 9wXvk8 (no daemon)]:
 WALLET_PASSWORD_PROMPT  = r"Wallet password:"
 WALLET_ISOKAY_PROMPT    = r"Is this okay\?\s+\(Y/Yes/N/No\):"            # "Is this okay?  (Y/Yes/N/No):"   #submit_transfer has  "Is this okay? (Y/Yes/N/No):"
+WALLET_FLUFF_PROMPT     = r"(\[wallet [0-9A-Za-z]{6}( \(no daemon\)\]:)?)? ?(\\r)?\\x1b\[(K|[0-9;]+m)"
 
 
 
 class Wallet(object):
-    def __init__(self, walletFile = None, password = '',daemonAddress = None, daemonHost = None,testnet = False,cold = True,gui=False):
+    def __init__(self, walletFile = None, password = '',daemonAddress = None, daemonHost = None,testnet = False,cold = True,gui=False,postHydra = False,debug = True):
         self.gui = gui
+        self._debug = debug
+        self.postHydra = postHydra
         if self.gui:
             if sys.version_info < (3,):
                 self.gui = False # not test python 2 tkinter yet
@@ -58,11 +62,22 @@ class Wallet(object):
         self.TIMEOUT = 300   # may need to bump this up if using new wallets
         self.walletArgs = []
 
-        self.addressPattern = re.compile(r"[489A][a-zA-Z0-9]{94}") # TODO remove chars not found in addresses, testnet subaddresses?
-        self.address_bookPattern = re.compile(r"Index: [0-9]+\s+Address: [489A][a-zA-Z0-9]{94}\s+Payment ID: <[0-9]+>\s+Description:[\S ]*[\r\n]*")
-        self.address_bookPartsPattern = re.compile(r"Index: (?P<index>[0-9]+)\s+Address: (?P<address>[489A][a-zA-Z0-9]{94})\s+Payment ID: <(?P<payid>[0-9]+)>\s+Description:(?P<desc>[\S ]*)[\r\n]*")
-        self.balancePattern = re.compile(r"Balance: (?P<balance>[0-9\.]+), unlocked balance: (?P<unlocked>[0-9\.]+)")
+        # helium hydra
+        ######################################################
+        self.patterns = {}
+        self.patterns.update({"address" : re.compile(r"[489AB][a-zA-Z0-9]{94}")}) # TODO remove chars not found in addresses, testnet subaddresses?
+        self.patterns.update({"address_book" : re.compile(r"Index: [0-9]+\s+Address: [489A][a-zA-Z0-9]{94}\s+Payment ID: <[0-9]+>\s+Description:[\S ]*[\r\n]*")})
+        self.patterns.update({"address_book_parts" : re.compile(r"Index: (?P<index>[0-9]+)\s+Address: (?P<address>[489A][a-zA-Z0-9]{94})\s+Payment ID: <(?P<payid>[0-9]+)>\s+Description:(?P<desc>[\S ]*)[\r\n]*")})
+        self.patterns.update({"balance": re.compile(r"Balance: (?P<balance>[0-9\.]+), unlocked balance: (?P<unlocked>[0-9\.]+)")})
 
+
+        if self.postHydra:
+            self.patterns.update({"address" : re.compile(r"[489AB][a-zA-Z0-9]{94}")}) # TODO remove chars not found in addresses, testnet subaddresses?
+            self.patterns.update({"address_book" : re.compile(r"Index: [0-9]+\s+Address: [489A][a-zA-Z0-9]{94}\s+Payment ID: <[0-9]+>\s+Description:[\S ]*[\r\n]*")})
+            self.patterns.update({"address_book_parts" : re.compile(r"Index: (?P<index>[0-9]+)\s+Address: (?P<address>[489A][a-zA-Z0-9]{94})\s+Payment ID: <(?P<payid>[0-9]+)>\s+Description:(?P<desc>[\S ]*)[\r\n]*")})
+            self.patterns.update({"balance": re.compile(r"Balance: (?P<balance>[0-9\.]+), unlocked balance: (?P<unlocked>[0-9\.]+)")})
+
+        #####################################################
         self.walletFile = walletFile.split()[0]  #split is to defeat sneaky attack
         if not walletFile:
             raise Exception("Argument Error: Currently, this library does not automate wallet generation... maybe if you ask nicely we can add it")
@@ -101,9 +116,17 @@ class Wallet(object):
 
         self.startWallet()
 
+    def debug(self,title,msg):
+        if self._debug:
+            print("=================\nDEBUG: %s" % title)
+            print(repr(msg))
+            print("=================")
+
     def haltAndCatchFire(self,err):
         print(err)
-        print(self.child.before, self.child.after)
+        self.debug("Before",self.child.before)
+        self.debug("After",self.child.after)
+
         print(str(self.child))
         self.stopWallet()
         raise Exception(err)
@@ -218,22 +241,36 @@ class Wallet(object):
     def status(self,verbose = True,refresh = False):
         if refresh:
             self.walletCmd("refresh",verbose=verbose)
-        info = self.walletCmd("status",verbose=verbose)
+        if self.postHydra:
+            info = self.walletCmd("status",verbose=verbose,override = self.patterns["status"])
+        else:
+            info = self.walletCmd("status",verbose=verbose)
+        self.debug("status",info)
         info = info.replace("status","").replace("\r\n","")
+
         return info
 
     def balance(self,verbose = True):
-        info = self.walletCmd("balance",verbose=verbose)
+        if self.postHydra:
+            info = self.walletCmd("balance",verbose=verbose,override = self.patterns["balance"])
+        else:
+            info = self.walletCmd("balance",verbose=verbose)
+        self.debug("balance",info)
         #info = info.replace("balance","",1).replace("\r\n","")
-        match = self.balancePattern.search(info)
+        match = self.patterns["balance"].search(info)
         if match:
             return match.group("balance"),match.group("unlocked")
-        else:
-            return "X.XXXXXXXXXXXX","X.XXXXXXXXXXXX"
+
+        return "X.XXXXXXXXXXXX","X.XXXXXXXXXXXX"
 
     def address(self,verbose = True):
-        info = self.walletCmd("address",verbose=verbose)
-        matches = re.findall(self.addressPattern,info)
+        if self.postHydra:
+            info = self.walletCmd("address",verbose=verbose,override = self.patterns["address"])
+        else:
+            info = self.walletCmd("address",verbose=verbose)
+        #info = self.walletCmd("address",verbose=verbose)
+        self.debug("address",info)
+        matches = re.findall(self.patterns["address"],info)
         #info = info.replace("address","",1).replace("\r\n","")
         return matches
 
@@ -244,27 +281,47 @@ class Wallet(object):
             cmd += " add %s" % add[0]
             if add[1]: # the description (optional)
                 cmd += " %s" % add[1]
-        info = self.walletCmd(cmd,verbose=verbose)
-        entries = re.findall(self.address_bookPattern,info)
-        book = []
+
+        if self.postHydra:
+            info = self.walletCmd("address_book",verbose=verbose,override = self.patterns["address_book"])
+        else:
+            info = self.walletCmd("address_book",verbose=verbose)
+        #info = self.walletCmd(cmd,verbose=verbose)
+        self.debug("address_book",info)
+        entries = re.findall(self.patterns["address_book"],info)
+        book = {}
         for e in entries:
-            parts = self.address_bookPartsPattern.match(e)
+            parts = self.patterns["address_book_parts"].match(e)
             entry = {"index":parts.group("index"),"address":parts.group("address"),"payid":parts.group("payid")}
             if parts.group("desc") == "":
                 entry.update({"description":""})
             else:
                 entry.update({"description":parts.group("desc")[1:]})
-            book.append(entry)
+            entry.update({"menu": parts.group("index") + ": |" + parts.group("desc")[1:14] + "| " +  parts.group("address")[:8] + ".. <" + parts.group("payid")[:5] + "...>" })
+            print("entry:")
+
+            book.update({parts.group("index"):entry})
         #info = info.replace("address","",1).replace("\r\n","")
+
         return book
     #def transferViewOnly(self,destAddress, amount, priority = "unimportant",autoConfirm = 0, verbose = True):
     #
 
-    def walletCmd(self,cmd,autoConfirm = False,verbose = True,NOP = False):
+    def walletCmd(self,cmd,autoConfirm = False,verbose = True,NOP = False,override = None):
         self.filterBuffer = ""
         self.ready = False
         #if verbose: print(self.child.before,self.child.after)
         if not NOP: self.child.sendline(cmd)
+        if override:
+            i = self.child.expect([pexpect.TIMEOUT,override], timeout = self.TIMEOUT)
+            if i == 0: # Timeout
+                self.haltAndCatchFire('TIMEOUT ERROR! Wallet did not return within TIMEOUT limit %s' % self.TIMEOUT)
+            elif i == 1: # override
+                self.ready = True
+                if verbose:
+                    print(self.child.before,end="")
+                    print(self.child.after,end="")
+                return self.child.after.replace("\x1b[0m","").replace("\x1b[1;31m","").replace("\x1b[1;37m","").replace("\x1b[1;33m","").strip()
         i = self.child.expect([pexpect.TIMEOUT, WALLET_SYNCED_PROMPT, WALLET_NODAEMON_PROMPT,WALLET_PASSWORD_PROMPT,WALLET_ISOKAY_PROMPT], timeout = self.TIMEOUT)
         if i == 0: # Timeout
             self.haltAndCatchFire('TIMEOUT ERROR! Wallet did not return within TIMEOUT limit %s' % self.TIMEOUT)

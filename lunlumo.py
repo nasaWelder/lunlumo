@@ -29,7 +29,7 @@ else:
     import tkinter.messagebox as MessageBox
     #import codecs
     def b(x):
-        #return codecs.latin_1_encode(x)[0]
+        #return codeqcs.latin_1_encode(x)[0]
         return x.decode("utf-8")
 
 ## lunlumo libraries
@@ -59,11 +59,12 @@ import webbrowser as web
 # 48Zuamrb7P5NiBHrSN4ua3JXRZyPt6XTzWLawzK9QKjTVfsc2bUr1UmYJ44sisanuCJzjBAccozckVuTLnHG24ce42Qyak6
 
 class Lunlumo(ttk.Frame):
-    def __init__(self,app, parent,walletFile = None, password = '',background ="misc/genericspace.gif",daemonAddress = None, daemonHost = None,testnet = False,cold = True, *args, **kwargs):
+    def __init__(self,app, parent,walletFile = None, password = '',background ="misc/genericspace2.gif",daemonAddress = None, daemonHost = None,testnet = False,cold = True, *args, **kwargs):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
-        self.wallet = wex.Wallet(walletFile, password,daemonAddress, daemonHost,testnet,cold,gui=True)
+        self.wallet = wex.Wallet(walletFile, password,daemonAddress, daemonHost,testnet,cold,gui=True,postHydra = False,debug = True)
+        self.address_menu = None
         if background:
             self.bg = tk.PhotoImage(file = background)
             self.bglabel = tk.Label(self, image=self.bg)
@@ -76,8 +77,8 @@ class Lunlumo(ttk.Frame):
 
             self.sidebar.grid(row=0,column = 0,sticky=tk.NW)
             self.statusbar.grid(row=2,column = 0, columnspan =3,sticky=tk.W+tk.E)
-            self.receivepage.grid(row=0,column = 1 ,sticky=tk.W+tk.E,padx=(20,20),pady=(20,20))
-            #self.sendpage.grid(row=0,column = 1 ,sticky=tk.NW+tk.SE,padx=(20,20),pady=(20,20))
+            #self.receivepage.grid(row=0,column = 1 ,sticky=tk.W+tk.E,padx=(20,20),pady=(20,20))
+            self.sendpage.grid(row=0,column = 1 ,sticky=tk.NW+tk.SE,padx=(20,20),pady=(20,20))
 
             #self._root().after(100,self.receivepage.grid_propagate,False)
         except Exception as e:
@@ -85,7 +86,7 @@ class Lunlumo(ttk.Frame):
             MessageBox.showerror("Startup Error",str(e))
 
 class Sidebar(ttk.Frame):
-    def __init__(self,app, parent, delay = 28000,background = "misc/genericspace.gif", *args, **kwargs):
+    def __init__(self,app, parent, delay = 28000,background = "misc/genericspace3.gif", *args, **kwargs):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
@@ -94,14 +95,14 @@ class Sidebar(ttk.Frame):
             self.bg = tk.PhotoImage(file = background)
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
-        self.logo = tk.PhotoImage(file = "misc/legitmoonsmaller.gif")
+        self.logo = tk.PhotoImage(file = "misc/2legitmoonsmaller.gif")
         self.showLogo = ttk.Label(self,image= self.logo)
         self.balFrame =  tk.Frame(self,highlightcolor = "white",highlightbackground = "white",highlightthickness=3,background ="#4C4C4C")
         if background:
             self.balbg = tk.PhotoImage(file = background)
             self.balbglabel = tk.Label(self.balFrame, image=self.bg)
             self.balbglabel.place(x=0, y=0, relwidth=1, relheight=1)
-        initBal = self.app.wallet.balancePattern.search(self.app.wallet.child.before)
+        initBal = self.app.wallet.patterns["balance"].search(self.app.wallet.child.before)
         if not initBal:
             initBal = ("X.XXXXXXXXXXXX","X.XXXXXXXXXXXX")
             self._root().after(1000,self.idle_refresh)
@@ -169,6 +170,55 @@ class Pane(ttk.Frame):
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
 
+
+class Destination(ttk.Frame):
+    def __init__(self,app, parent,background = "misc/genericspace3.gif",name = "", *args, **kwargs):
+        ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
+        self.app = app
+        self.parent = parent
+        self.name = name
+        if not self.app.address_menu:
+            self.app.address_book = self.app.wallet.address_book()
+            self.app.address_menu = [""]
+            for k,v in self.app.address_book.items():
+                self.app.address_menu.append(v["menu"])
+            self.app.address_menu.sort()
+        if background:
+            self.bg = tk.PhotoImage(file = background)
+            self.bglabel = tk.Label(self, image=self.bg)
+            self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
+        self.heading = ttk.Label(self,text = "Address",style = "app.TLabel")
+        self.dest_address = tk.Text(self,bg = "white",height = 2,width = 48,insertbackground ="#D15101",selectbackground = "#D15101" )
+        self.amount = MyWidget(self.app,self,handle = self.name + "Amount",choices = "entry",)
+        self.address_book_select = MyWidget(self.app, self,handle = "Address Book",choices=self.app.address_menu,startVal = "",cmd = self.address_book_chosen)
+
+        self.heading.grid(row=0,column=1,sticky = tk.W,pady= (0,0))
+        self.dest_address.grid(row=1,column=1,sticky = tk.E,pady= (0,0))
+        self.amount.grid(row=0,column=0,rowspan = 2,sticky = tk.NE,pady= (0,0),padx = (0,25))
+        self.address_book_select.grid(row=3,column=0,columnspan = 4,sticky = tk.E,pady= (0,0))
+
+    def dest_insert(self,address):
+        self.dest_address.delete('1.0', tk.END)
+        self.dest_address.insert('1.0',address)
+
+    def address_book_chosen(self):
+        pick = self.address_book_select.get()[0]
+        if pick:
+            new_address = self.app.address_book[pick.split(":")[0]]["address"]
+            self.dest_insert(new_address)
+        else:
+            self.dest_insert("")
+
+    def get(self):
+        dest = self.dest_address.get("1.0",END).strip()
+        amount = self.amount.get()[0]
+        if len(self.dest_address.get("1.0",END).strip()) == 95:
+            if float(amount):
+                return dest + " " + amount
+        return None
+
+
+
 class Receive(ttk.Frame):
     def __init__(self,app, parent,coin="monero",background = None, *args, **kwargs):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
@@ -181,7 +231,7 @@ class Receive(ttk.Frame):
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
         self.heading = ttk.Label(self,text = "Receive",style = "heading.TLabel")
         self.addresses = []
-        self.initAddress = self.app.wallet.addressPattern.search(self.app.wallet.child.before)
+        self.initAddress = self.app.wallet.patterns["address"].search(self.app.wallet.child.before)
         self.textAddress = MyWidget(self.app,self,handle = "Address",choices = [self.initAddress.group(0)],cwidth = 50,startVal =  self.initAddress.group(0) )
         self.amountVar = tk.StringVar()
         self.amount = MyWidget(self.app,self,handle = "Amount",choices = "entry",optional = True,activeStart=False)
@@ -194,7 +244,7 @@ class Receive(ttk.Frame):
         self.heading.grid(row=0,column=0,sticky = tk.W,pady= (10,20))
         self.textAddress.grid(row=1,column=0,columnspan = 2,sticky = tk.W)
         self.amount.grid(row=2,column=0,sticky = tk.E,pady= (10,0))
-        self.qr.grid(row=3,column=0,sticky = tk.W,padx=(30,0),pady= (30,50))
+        self.qr.grid(row=0,column=2,sticky = tk.W,padx=(30,0),pady= (30,50),rowspan = 10)
         self.app.after(5000,self.idle_refresh)
 
     def idle_refresh(self,something = None):
@@ -223,8 +273,8 @@ class Receive(ttk.Frame):
                 self.amount.value.delete(0, tk.END)
                 MessageBox.showerror("Amount Error",str(e))
         self.qrPage = pyqrcode.create(msg,error="L")
-        self.code = tk.BitmapImage(data=self.qrPage.xbm(scale=5))
-        self.code.config(background="white")
+        self.code = tk.BitmapImage(data=self.qrPage.xbm(scale=15))
+        self.code.config(background="gray60")
         self.qr.config(image = self.code)
 
 class SendPane(ttk.Frame):
@@ -237,14 +287,30 @@ class SendPane(ttk.Frame):
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
         self.heading = ttk.Label(self,text = "Send",style = "heading.TLabel")
-        self.amount = MyWidget(self.app,self,handle = "Amount",choices = "entry",)
-        self.priority = MyWidget(self.app,self,handle = "Priority",choices = ["unimportant","normal","elevated","priority"],)
-        self.privacy = MyWidget(self.app,self,handle = "Privacy",choices = [str(i) for i in range(5,40)],)
-
+        self.destFrame = VSFrame(self,fheight = 230)
+        self.dests = []
+        for i in range(10):
+            if i in [1,4,7,]:
+                b = "misc/genericspace3.gif"
+            elif i in [2,5,8,]:
+                b = "misc/genericspace.gif"
+            else:
+                b = "misc/genericspace2.gif"
+            dest = Destination(self.app,self.destFrame.interior,name = "%s: "% str(i+1),background = b)
+            dest.pack(padx=(0,20),pady=(0,15))
+            self.dests.append(dest)
+        #############################
+        self.extra = ttk.Frame(self,style = "app.TFrame",)
+        self.priority = MyWidget(self.app,self.extra,handle = "Priority",choices = ["unimportant","normal","elevated","priority"],)
+        self.privacy = MyWidget(self.app,self.extra,handle = "Privacy",choices = [str(i) for i in range(5,40)],)
+        self.priority.grid(row=0,column=1,sticky = tk.E)
+        self.privacy.grid(row=0,column=2,sticky = tk.E)
+        #self.fee =
+        #############################
         self.heading.grid(row=0,column=0,sticky = tk.W,pady= (10,20))
-        self.amount.grid(row=1,column=0,sticky = tk.W)
-        self.priority.grid(row=1,column=1,sticky = tk.W)
-        self.privacy.grid(row=1,column=2,sticky = tk.W)
+        self.destFrame.grid(row=1,column=0,columnspan = 3,pady = (0,25),sticky = tk.E)
+        self.extra.grid(row=2,column=1,sticky = tk.E)
+
 
 class FilePicker(ttk.Frame):
     def __init__(self,app, parent,handle,start = None,buttonName = "Select",askPass = False,background = None,ftypes = [("all","*")],idir="./", *args, **kwargs):
@@ -255,7 +321,7 @@ class FilePicker(ttk.Frame):
         self.ftypes = ftypes
         self.idir = idir
         self.askPass = askPass
-        self.orange = tk.PhotoImage(file = "misc/orange2_65.gif")
+
         self.moon1 = tk.PhotoImage(file = "misc/moonbutton1.gif")
         self.moon2 = tk.PhotoImage(file = "misc/moonbutton2.gif")
         self.moon3 = tk.PhotoImage(file = "misc/moonbutton3.gif")
@@ -276,7 +342,7 @@ class FilePicker(ttk.Frame):
             self.displayVar.set(os.path.basename(choice))
         self.select = ttk.Label(self,textvariable = self.displayVar,wraplength=210,style = "app.TLabel")
         #self.button = ttk.Button(self,text = buttonName,style = "app.TButton",command =self.dialog )
-        self.button = tk.Button(self,text = "Select",command =self.dialog,image = self.moon1,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
+        self.button = tk.Button(self,text = "select",command =self.dialog,image = self.moon2,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
         self.title.grid(row = 0,column = 0,padx=(5,0))
         self.button.grid(row = 0,column = 1,padx=6,pady = 6)
         self.select.grid(row = 1,column = 0,sticky = tk.W,columnspan = 3,padx=(5,0),pady=(0,3))
@@ -309,10 +375,7 @@ class Login(ttk.Frame):
         self.app = app
         self.parent = parent
         self.final = None
-        self.orange1 = tk.PhotoImage(file = "misc/orange1_50.gif")
-        self.orange2 = tk.PhotoImage(file = "misc/orange2_65.gif")
-        self.orange3 = tk.PhotoImage(file = "misc/orange3_65.gif")
-        self.orange4 = tk.PhotoImage(file = "misc/orange4_65.gif")
+
         self.moon1 = tk.PhotoImage(file = "misc/moonbutton1.gif")
         self.moon2 = tk.PhotoImage(file = "misc/moonbutton2.gif")
         self.moon3 = tk.PhotoImage(file = "misc/moonbutton3.gif")
@@ -321,12 +384,12 @@ class Login(ttk.Frame):
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
 
-        self.logo = tk.PhotoImage(file = "misc/legitmoonsmaller.gif")
+        self.logo = tk.PhotoImage(file = "misc/2legitmoonsmaller.gif")
         self.showLogo = ttk.Label(self,image= self.logo,style = "app.TLabel",cursor = "shuttle")
         #heading = ttk.Label(first,text= "Wallet Options",style = "app.TLabel")
-        self.walletFile = FilePicker(self.app,self,"Wallet File",askPass = True,start = None,background = "misc/genericspace.gif",ftypes = [("full","*.keys"),("watchonly","*.keys-watchonly")],idir="./")
+        self.walletFile = FilePicker(self.app,self,"wallet file",askPass = True,start = None,background = "misc/genericspace.gif",ftypes = [("full","*.keys"),("watchonly","*.keys-watchonly")],idir="./")
         self.testnet = MyWidget(self.app,self,handle = "testnet",optional = 1,)
-        self.launch = tk.Button(self,text = "Launch!",command =self.launch,cursor = "shuttle",image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
+        self.launch = tk.Button(self,text = "launch!",command =self.launch,cursor = "shuttle",image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
         #MyWidget(app, parent,handle,choices=None,subs = {},allowEntry = False,optional = False,activeStart=1,ewidth = 8,cwidth = None, cmd = None)
         self.daemon = MyWidget(self.app,self,handle = "daemon",startVal = "None (cold wallet)",allowEntry = False,cwidth = 18,cipadx = 1,
                                 choices = ["None (cold wallet)","default, already running","daemonHost","daemonAddress"],
@@ -402,9 +465,13 @@ class MyWidget(ttk.Frame):
         self.title.pack(anchor = tk.W)
         if self.choices:
             self.value.pack(anchor = tk.E,ipadx = cipadx)
-            if self.startVal:
-                self.value.set(self.startVal)
-                self._root().after(0,self.findSubs)
+            if not self.startVal is None:
+                if not self.choices == "entry":
+                    self.value.set(self.startVal)
+                    self._root().after(0,self.findSubs)
+                else:
+                    self.value.insert(0,startVal)
+                    self._root().after(0,self.findSubs)
         if self.optional:
             if activeStart:
                 self.optState.set(1)
@@ -468,11 +535,48 @@ class MyWidget(ttk.Frame):
             self.sub._grey()
 
 
+class SendTop(tk.Toplevel):
+    def __init__(self,app,parent,title="File Sender",*args,**kargs):
+        tk.Toplevel.__init__(self,background = "black")
+        self.app = app
+        self.parent = parent
+        self._title = title
+        self.title(self._title)
+        self.sender = SendFrame(self.app,self, *args,**kargs)
+
+        self.protocol("WM_DELETE_WINDOW", self.close)
+
+        self.sender.pack(anchor = tk.W)
+        w, h = self._root().winfo_screenwidth(), self._root().winfo_screenheight()
+        self.geometry("%dx%d+%d+0" % (int(w*.85), h,int(w*.14)))
+        #self.lift()
+        self.showme()
+
+    def showme(self):
+        #self.grab_set()
+        #self.focus()
+        #w, h = self._root().winfo_screenwidth(), self._root().winfo_screenheight()
+        #print("w:",w,",h:",h)
+        #self.geometry("%dx%d+0+0" % (w, h))
+        self.lift()
+        self.attributes('-topmost', 1)
+
+        #self._root().after(200,self.attributes,'-topmost', 0)
+        #self._root().after(210,self._root().attributes,'-topmost', 1)
+        #self._root().after(220,self._root().attributes,'-topmost', 0)
+
+        #self._root().after(100,self.geometry,"%dx%d+0+0" % (int(w*.9), h))
+        #self.lift()
 
 
-class SendFrame(ttk.Frame):
-    def __init__(self,app,parent,payloadType,payloadPath,PAGE_SIZE = 1000,delay = 1100,width = 350, height = 400,*args,**kargs):
-        ttk.Frame.__init__(self,parent,height = height, width = width,style = "app.TFrame", *args,**kargs)
+        #self.attributes('-fullscreen', True)
+    def close(self):
+        print("SendTop '%s' closed by WM_DELETE_WINDOW" % self._title)
+        self._root().after(10,self.destroy)
+
+class SendFrame(tk.Frame):
+    def __init__(self,app,parent,payloadType,payloadPath,PAGE_SIZE = 700,qrBackground = "gray52",qrForeground = "gray1",qrScale = 8,delay = 850,width = 350, height = 400,*args,**kargs):
+        tk.Frame.__init__(self,parent,height = height,background = "black", width = width, *args,**kargs) # style = "app.TFrame"
         #global slides
         self.app = app
         self.checksum = crc(payloadPath)
@@ -480,6 +584,35 @@ class SendFrame(ttk.Frame):
         self.delay = delay
         self.PAGE_SIZE = PAGE_SIZE
         self.payloadType = payloadType
+        self.payloadPath = payloadPath
+        self.qrScale = qrScale
+        self.qrBackground = qrBackground
+        self.qrForeground = qrForeground
+        ##################################
+        # settings
+        self.moon = tk.PhotoImage(file = "misc/moonbutton1.gif")
+        self.settings = tk.Frame(self,background = "black")
+        self.title = ttk.Label(self,text = "sending: %s" % (os.path.basename(payloadPath)),style = "app.TLabel")
+        self.crclbl = ttk.Label(self,text = "crc32: %s" % self.checksum,style = "app.TLabel")
+        self.ticker = ttk.Label(self,text = "X / X",style = "app.TLabel")
+
+        self.bytesEntry = MyWidget(self.app,self.settings,handle = "bytes / QR",choices="entry",startVal = self.PAGE_SIZE)
+        self.scaleEntry = MyWidget(self.app,self.settings,handle = "size",choices=[str(x) for x in range(4,15)],startVal = self.qrScale)
+        self.bgEntry = MyWidget(self.app,self.settings,handle = "bg color",choices=["gray" + str(x) for x in range(1,100)],allowEntry = 1,startVal = self.qrBackground)
+        self.fgEntry = MyWidget(self.app,self.settings,handle = "fg Color",choices=["gray" + str(x) for x in range(1,100)],allowEntry = 1,startVal = self.qrForeground)
+        self.delayEntry = MyWidget(self.app,self.settings,handle = "delay (ms)",choices="entry",startVal = self.delay)
+        self.resetButton = tk.Button(self.settings,text = "apply",command =self.reset,image = self.moon,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "light gray",bd = 3,bg = "#900100" )
+
+        self.title.grid(row=0,column = 0,sticky=tk.W)
+        self.crclbl.grid(row=1,column = 0,sticky=tk.W,)
+        self.ticker.grid(row=1,column = 2,sticky=tk.W,padx=(0,20))
+
+        self.bytesEntry.grid(row = 0,column = 0,sticky = tk.E)
+        self.scaleEntry.grid(row = 1,column = 0,sticky = tk.E)
+        self.bgEntry.grid(row = 2,column = 0,sticky = tk.E)
+        self.fgEntry.grid(row = 3,column = 0,sticky = tk.E)
+        self.delayEntry.grid(row = 4,column = 0,sticky = tk.E)
+        self.resetButton.grid(row = 5,column = 0,pady=(10,0))
         ##################################
         # Create QR images
         self.slides = []
@@ -491,66 +624,133 @@ class SendFrame(ttk.Frame):
         if self.numQR >= 1000:
             raise Exception("%s QRs!! file really got out of hand, exiting"% self.numQR)
 
-        """
-        j = 1
-        x = 0
-        while True:
-            chunk = self.payload[x: x+self.PAGE_SIZE]
-            if not chunk:
-              self.numQR = j-1
-              #print("\tQR codes:\t\t%s"%numQR)
-              break
-            if j>=1000:
-                raise Exception("file really got out of hand, exiting")
-            j+=1
-            x += self.PAGE_SIZE
-        """
+        self.ind = 0
         self.i = 1
         self.x = 0
+
+        self.ready = False
         self.make_slides()
+        self._root().after(50, self.idle_refresh,)
 
         #################################
 
-        self.title = ttk.Label(self,text = "Point Camera Here to Recieve: %s %s" % (payloadType,os.path.basename(payloadPath)),style = "app.TLabel")
-        self.crclbl = ttk.Label(self,text = "crc32: %s" % self.checksum,style = "app.TLabel")
-        self.ticker = ttk.Label(self,text = "X / X",style = "app.TLabel")
+
         self.current = ttk.Label(self,style = "app.TLabel")
 
-        self.title.grid(row=0,column = 0,columnspan=3,sticky=tk.W)
-        self.crclbl.grid(row=1,column = 0,sticky=tk.W,)
-        self.ticker.grid(row=1,column = 1,sticky=tk.W,)
-        self.current.grid(row=2,column = 0,columnspan=5,sticky=tk.W)
+        self.settings.grid(row=2,column = 0,sticky=tk.NW,padx = (0,30))
+
+        self.current.grid(row=0,column = 3,rowspan =9,sticky=tk.W)
+
+    def reset(self):
+        self.delay = int(self.delayEntry.get()[0])
+        self.PAGE_SIZE = int(self.bytesEntry.get()[0])
+        self.qrScale = int(self.scaleEntry.get()[0])
+        self.qrBackground = self.bgEntry.get()[0]
+        self.qrForeground = self.fgEntry.get()[0]
+
+        self.numQR = ceil(len(self.payload)/self.PAGE_SIZE)
+        if self.numQR >= 1000:
+            raise Exception("%s QRs!! file really got out of hand, exiting"% self.numQR)
+        self.slides = []
+        self.skip = []
+        self.i = 1
+        self.x = 0
+        self.ind = 0
+        if self.ready: self.make_slides()
+        self.ind = 0
+
+
     def make_slides(self):
         chunk = self.payload[self.x: self.x+self.PAGE_SIZE]
         if chunk:
+            self.ready = False
             heading = self.payloadType + "," + self.checksum + "," + str(self.i) + "/" + str(int(self.numQR)) + ":"
             page = heading + b(chunk)
             qrPage = pyqrcode.create(page,error="L")
             #saved = qrPage.svg(heading.replace(",","_").replace(":","_").replace("/","_") + ".svg")
-            code = tk.BitmapImage(data=qrPage.xbm(scale=3))
-            code.config(background="white")
+            code = tk.BitmapImage(data=qrPage.xbm(scale=self.qrScale))
+            code.config(background=self.qrBackground,foreground = self.qrForeground )
             #exec("self.i%s = code"% self.i)
             self.slides.append(code)
             self.i+=1
             self.x += self.PAGE_SIZE
-            root.after(100, self.make_slides)
-
-    def refresh(self,ind):
-        while ind in self.skip:
-            ind += 1
-        try:
-            slide = self.slides[ind]
-            self.ticker.configure(text = "%s / %s" % (ind+1,self.numQR))
-            self.current.configure(image=slide)
-        except IndexError:
-            ind = 0
+            self._root().after(100, self.make_slides)
         else:
-            ind += 1
-        if ind >= self.numQR: ind =0
-        root.after(self.delay, self.refresh, ind)
+            self.ready = True
+    def idle_refresh(self,something = None):
+        self._root().after_idle(self.refresh)
+    def refresh(self):
+        print("refresh :" ,self.ind)
+        if self.slides:
+            while self.ind in self.skip:
+                print("skipping :",self.ind)
+                self.ind += 1
+            try:
+                slide = self.slides[self.ind]
+                self.ticker.configure(text = "%s / %s" % (self.ind+1,self.numQR))
+                print("showing :",self.ind)
+                self.current.configure(image=slide)
+            except IndexError:
+                self.ind = 0
+                print("indexError :",self.ind)
+            else:
+                self.ind += 1
+            if self.ind >= self.numQR:
+                print("end reached :",self.ind)
+                self.ind =0
+
+        self._root().after(self.delay, self.idle_refresh,)
 
 
+# http://tkinter.unpythonic.net/wiki/VerticalScrolledFrame
 
+class VSFrame(tk.Frame):
+    """A pure Tkinter scrollable frame that actually works!
+    * Use the 'interior' attribute to place widgets inside the scrollable frame
+    * Construct and pack/place/grid normally
+    * This frame only allows vertical scrolling
+
+    """
+    def __init__(self, parent,fheight = 200, background = "misc/genericspacev.gif",*args, **kw):
+        tk.Frame.__init__(self, parent, *args, **kw)
+
+        # create a canvas object and a vertical scrollbar for scrolling it
+        vscrollbar = tk.Scrollbar(self, orient=tk.VERTICAL)
+        vscrollbar.pack(fill=tk.Y, side=tk.RIGHT, expand=tk.FALSE)
+        canvas = tk.Canvas(self, bd=0, highlightthickness=0,
+                        yscrollcommand=vscrollbar.set,height = fheight)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=tk.TRUE)
+        vscrollbar.config(command=canvas.yview)
+
+        # reset the view
+        canvas.xview_moveto(0)
+        canvas.yview_moveto(0)
+
+        # create a frame inside the canvas which will be scrolled with it
+        self.interior = interior = tk.Frame(canvas)
+        interior_id = canvas.create_window(0, 0, window=interior,
+                                           anchor=tk.NW)
+        if background:
+            self.bg = tk.PhotoImage(file = background)
+            self.bglabel = tk.Label(self.interior, image=self.bg)
+            self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
+
+        # track changes to the canvas and frame width and sync them,
+        # also updating the scrollbar
+        def _configure_interior(event):
+            # update the scrollbars to match the size of the inner frame
+            size = (interior.winfo_reqwidth(), interior.winfo_reqheight())
+            canvas.config(scrollregion="0 0 %s %s" % size)
+            if interior.winfo_reqwidth() != canvas.winfo_width():
+                # update the canvas's width to fit the inner frame
+                canvas.config(width=interior.winfo_reqwidth())
+        interior.bind('<Configure>', _configure_interior)
+
+        def _configure_canvas(event):
+            if interior.winfo_reqwidth() != canvas.winfo_width():
+                # update the inner frame's width to fill the canvas
+                canvas.itemconfigure(interior_id, width=canvas.winfo_width())
+        canvas.bind('<Configure>', _configure_canvas)
 
 
 
@@ -635,7 +835,7 @@ def send(args):
             saved2 = qrPage.eps(pagePath+".eps",scale=3.5,)
         #frames.append( ImageTk.PhotoImage( Image.open( pagePath+".eps" ) ) )
         code = tk.BitmapImage(data=qrPage.xbm(scale=4))
-        code.config(background="white")
+        code.config(background="gray55")
         frames.append(code)
         i+=1
 
@@ -809,6 +1009,7 @@ Tlwg Typo
 
 
 if __name__ == "__main__":
+
     first = tk.Tk()
     first.configure(bg="#F2681C")
     first.geometry("%dx%d%+d%+d" % (400, 500, 300, 150))  #(width, height, xoffset, yoffset)
@@ -817,19 +1018,19 @@ if __name__ == "__main__":
     bglabel.bgimage = bg
     bglabel.place(x=0, y=0, relwidth=1, relheight=1)
 
-    #first.option_add('*TCombobox*Listbox.font', ('Liberation Mono','12','normal'))
-    #first.option_add('*TCombobox*Entry.font', ('Liberation Mono','12','normal'))
+    #first.option_add('*TCombobox*Listbox.font', ('Liberation Mono','8','normal'))
+    #first.option_add('*TCombobox*Entry.font', ('Liberation Mono','8','normal'))
     first.title("Wallet Options")
     style = ttk.Style()
     style.theme_use('clam') #('clam', 'alt', 'default', 'classic')
     style.configure("app.TLabel", foreground="white", background="black", font=('Liberation Mono','10','normal')) #"#4C4C4C")
     style.configure("heading.TLabel", foreground="white", background="black",) #"#4C4C4C")
-    style.configure("app.TFrame", foreground="white", background="#4C4C4C",)
-    style.configure("app.TButton", foreground="white", background="#C6480E",activeforeground ="#F2681C",font=('Liberation Mono','10','normal'),height = 5  )#F2681C
-    style.configure("app.TCheckbutton", foreground="white", background="black") #"#4C4C4C")
+    style.configure("app.TFrame", foreground="gray55", background="#4C4C4C",)
+    style.configure("app.TButton", foreground="gray55", background="#C6480E",activeforeground ="#F2681C",font=('Liberation Mono','10','normal'),height = 5  )#F2681C
+    style.configure("app.TCheckbutton", foreground="gray55", background="black") #"#4C4C4C")
     style.configure("app.TCombobox", background="#F2681C",font=('Liberation Mono','12','normal'))
-    style.configure("app.TEntry", foreground="black", background="white",font=('Liberation Mono','12','normal'))
-    style.configure("pass.TEntry", foreground="white", background="white",insertofftime=5000)
+    style.configure("app.TEntry", foreground="black", background="gray55",font=('Liberation Mono','12','normal'))
+    style.configure("pass.TEntry", foreground="gray55", background="gray55",insertofftime=5000)
 
     login = Login(first,first,background = "misc/genericspace.gif")
     login.pack()
@@ -840,17 +1041,17 @@ if __name__ == "__main__":
     if login.final:
         root = tk.Tk()
         #root.geometry("%dx%d%+d%+d" % (800, 500, 300, 150))  #(width, height, xoffset, yoffset)
-        root.title("Lunlumo     by NASA_Welder")
+        root.title("lunlumo                               (c) 2018 u/NASA_Welder")
         style = ttk.Style()
         style.theme_use('clam') #('clam', 'alt', 'default', 'classic')
         style.configure("app.TLabel", foreground="white", background="black",font=('Liberation Mono','12','normal')) #"#4C4C4C")
         style.configure("heading.TLabel", foreground="white", background="black",font=('Liberation Mono','36','normal')) #"#4C4C4C")
-        style.configure("app.TFrame", foreground="white", background="#4C4C4C",)
-        style.configure("app.TButton", foreground="white", background="#C6480E",activeforeground ="#F2681C")#F2681C
-        style.configure("app.TCheckbutton", foreground="white", background="black") #"#4C4C4C")
+        style.configure("app.TFrame", foreground="gray55", background="#4C4C4C",)
+        style.configure("app.TButton", foreground="gray55", background="#D15101",activeforeground ="#F2681C")#F2681C
+        style.configure("app.TCheckbutton", foreground="gray55", background="black") #"#4C4C4C")
         style.configure("app.TCombobox", background="#F2681C")
-        style.configure("app.TEntry", foreground="black", background="white")
-        style.configure("pass.TEntry", foreground="white", background="white",insertofftime=5000)
+        style.configure("app.TEntry", foreground="black", background="gray55")
+        style.configure("pass.TEntry", foreground="gray55", background="gray55",insertofftime=5000)
 
         try:
             App = Lunlumo(root,root,**login.final)
@@ -873,18 +1074,28 @@ if __name__ == "__main__":
         root.mainloop()
 
         App.wallet.stopWallet()
-        sys.exit(0)
-    """
+    sys.exit(0)
+
     root = tk.Tk()
+    style = ttk.Style()
+    style.theme_use('clam') #('clam', 'alt', 'default', 'classic')
+    style.configure("app.TLabel", foreground="gray55", background="black",font=('Liberation Mono','12','normal')) #"#4C4C4C")
+    style.configure("heading.TLabel", foreground="gray55", background="black",font=('Liberation Mono','36','normal')) #"#4C4C4C")
+    style.configure("app.TFrame", foreground="gray55", background="black",)
+    style.configure("app.TButton", foreground="gray55", background="#D15101",activeforeground ="#F2681C")#F2681C
+    style.configure("app.TCheckbutton", foreground="gray55", background="black") #"#4C4C4C")
+    #style.configure("app.TCombobox", background="#F2681C")
+    style.configure("app.TEntry", foreground="black", background="gray40")
+    style.configure("pass.TEntry", foreground="gray55", background="gray55",insertofftime=5000)
+    root.option_add("*TCombobox*Listbox*Background", 'pink')
+    sendme = SendTop(root,root,payloadType="raw",payloadPath = "signed_monero_tx",)
+    #sendme.sender.skip = [1,2,3,4,17,18,19]
 
-    sendme = SendFrame(root,root,"raw","signed_monero_tx",)
-    sendme.skip = [1,2,3,4,7,8,9,13,14,15,16,17,18,19]
+    #sendme.grid(row=0,column=0,)
+    #sendme.grid_propagate(False)
 
-    sendme.grid(row=0,column=0,)
-    sendme.grid_propagate(False)
-    root.after(0,sendme.refresh,0)
     root.mainloop()
-    """
+
     ########################################################
     sys.exit(0)
     args = parser.parse_args()
