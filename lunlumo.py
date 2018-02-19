@@ -27,6 +27,7 @@ else:
     import tkinter.ttk
     import tkinter.filedialog as FileDialog
     import tkinter.messagebox as MessageBox
+    import tkinter.simpledialog as SimpleDialog
     #import codecs
     def b(x):
         #return codeqcs.latin_1_encode(x)[0]
@@ -63,7 +64,7 @@ class Lunlumo(ttk.Frame):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
-        self.wallet = wex.Wallet(walletFile, password,daemonAddress, daemonHost,testnet,cold,gui=True,postHydra = False,debug = True)
+        self.wallet = wex.Wallet(walletFile, password,daemonAddress, daemonHost,testnet,cold,gui=True,postHydra = True,debug = True)
         self.address_menu = None
         if background:
             self.bg = tk.PhotoImage(file = background)
@@ -84,6 +85,10 @@ class Lunlumo(ttk.Frame):
         except Exception as e:
             self.wallet.stopWallet()
             MessageBox.showerror("Startup Error",str(e))
+
+        def confirm(self,msg):
+            return MessageBox.askokcancel("Please Confirm!",msg)
+
 
 class Sidebar(ttk.Frame):
     def __init__(self,app, parent, delay = 28000,background = "misc/genericspace3.gif", *args, **kwargs):
@@ -702,8 +707,31 @@ class SendFrame(tk.Frame):
         self._root().after(self.delay, self.idle_refresh,)
 
 
-# http://tkinter.unpythonic.net/wiki/VerticalScrolledFrame
+class MyConfirm(SimpleDialog):
 
+    def body(self, master):
+
+
+        self.bgb = tk.PhotoImage(file = "misc/genericspace.gif")
+        self.bglabelb = tk.Label(self.body, image=self.bgb)
+        self.bglabelb.place(x=0, y=0, relwidth=1, relheight=1)
+        Label(master, text="First:").grid(row=0)
+        Label(master, text="Second:").grid(row=1)
+
+        self.e1 = Entry(master)
+        self.e2 = Entry(master)
+
+        self.e1.grid(row=0, column=1)
+        self.e2.grid(row=1, column=1)
+        return self.e1 # initial focus
+
+    def apply(self):
+        first = int(self.e1.get())
+        second = int(self.e2.get())
+        print(first, second) # or something
+
+
+# http://tkinter.unpythonic.net/wiki/VerticalScrolledFrame
 class VSFrame(tk.Frame):
     """A pure Tkinter scrollable frame that actually works!
     * Use the 'interior' attribute to place widgets inside the scrollable frame
@@ -1011,6 +1039,7 @@ Tlwg Typo
 if __name__ == "__main__":
 
     first = tk.Tk()
+
     first.configure(bg="#F2681C")
     first.geometry("%dx%d%+d%+d" % (400, 500, 300, 150))  #(width, height, xoffset, yoffset)
     bg = tk.PhotoImage(file = "misc/genericspace.gif")
