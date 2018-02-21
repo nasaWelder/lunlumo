@@ -51,7 +51,12 @@ WALLET_COLOR            = r"\x1b\[[0-9;]+m"
 
 class Wallet(object):
     def __init__(self, walletFile = None, password = '',daemonAddress = None, daemonHost = None,testnet = False,cold = True,gui=False,postHydra = False,debug = True):
+        self.busy = True
         self.gui = gui
+        if debug is True:
+            debug = 1
+        elif debug is False:
+            debug = 0
         self._debug = debug
         self.postHydra = postHydra
         if self.gui: # TODO remove this as app will handle
@@ -120,20 +125,22 @@ class Wallet(object):
 
         self.startWallet()
 
-    def debug(self,title,msg):
-        if self._debug:
+    def debug(self,title,msg,level = 1):
+        if level <= self._debug:
             print("=================\nDEBUG: %s" % title)
             print(repr(msg))
             print("=================")
 
     def haltAndCatchFire(self,err):
         print(err)
-        self.debug("Before",self.child.before)
-        self.debug("After",self.child.after)
-
-        print(str(self.child))
-        self.stopWallet()
-        raise Exception(err)
+        self.debug("Before",self.child.before,0)
+        self.debug("After",self.child.after,0)
+        if not self.gui:
+            print(str(self.child))
+            self.stopWallet()
+            raise Exception(err)
+        else:
+            self.gui.wallet_alarm(err)
 
     def stopWallet(self):
         try:
@@ -170,6 +177,7 @@ class Wallet(object):
             else:
                 self.ready = True
         self.TIMEOUT = 45
+        self.busy = False
         print(self.child.before,end="")
         print(self.child.after,end="")
 
@@ -216,18 +224,22 @@ class Wallet(object):
             unspent  = info.strip().split(",")[2].split()[0].strip()
             return height,spent,unspent,info
 
-    def transfer(self,destAddress, amount, priority = "unimportant",autoConfirm = 0, verbose = True ):
-        tx_string = 'transfer %s %s %s' % (priority,destAddress,amount)
+    def transfer(self,tx_string,autoConfirm = 0, verbose = True ):
+        self.busy = True
         if self.postHydra:
-            info = self.walletCmdHack(tx_string,verbose=verbose,timeout = 10,)
+            info = self.walletCmdHack(tx_string,verbose=verbose,timeout = 120,faster = r"(successfully (submitted|written)[^\\]+|Error[^\\]+)")
         else:
             info = self.walletCmd(tx_string,verbose=verbose,autoConfirm = autoConfirm)
-        self.debug("transfer",info)
+        self.debug("transfer result",info,1)
         #info = self.walletCmd(tx_string,verbose=verbose,autoConfirm = autoConfirm)
         if not self.cold:
+            pass
             # saves unsigned_monero_tx to cwd
-            if not "Unsigned transaction(s) successfully written to file:" in info or not "Transaction successfully submitted" in info:
-                self.haltAndCatchFire('Wallet Error! unexpected result in transfer("%s"): %s' % (tx_string, info))
+        if not "Unsigned transaction(s) successfully written to file:" in info and not "Transaction successfully submitted" in info:
+            self.haltAndCatchFire('Wallet Error! unexpected result from "transfer": %s' % ( info))
+        elif "Transaction successfully submitted" in info and self.gui:
+            self.gui.showinfo(info)
+        self.busy = False
         return info
 
     def sign_transfer(self,autoConfirm = 0, verbose = True):
@@ -251,29 +263,60 @@ class Wallet(object):
         if refresh:
             #self.walletCmd("refresh",verbose=verbose)
             self.child.sendline("refresh")
-            time.sleep(.05)
+            time.sleep(.1)
         if self.postHydra:
             info = self.walletCmdHack("status",verbose=verbose,timeout = 15,faster = r"Refreshed[^\\]+")
+            self.debug("status info",info,2)
             info = re.findall(self.patterns["status"],info)[-1]
         else:
             info = self.walletCmd("status",verbose=verbose)
-        self.debug("status",info)
-        info = info.replace("status","").replace("\r\n","")
+            self.debug("status",info,2)
 
+        info = info.replace("status","").replace("\r\n","")
+        self.debug("status result",info,1)
         return info
 
-    def balance(self,verbose = True):
+    def fee(self,verbose = True,):
         if self.postHydra:
-            info = self.walletCmdHack("balance",verbose=verbose,timeout = 1,faster = r"nlock[^\\]+")
+            info = self.walletCmdHack("fee",verbose=verbose,timeout = 10,faster = r"(priority 4|wallet failed to connect to daemon)")
+            self.debug("fee info",info,2)
+            #info = re.findall(self.patterns["fee"],info)[-1]
+        else:
+            info = self.walletCmd("fee",verbose=verbose)
+            self.debug("fee info",info,2)
+        # ['fee', 'Current fee is 0.000311280000 monero per kB', 'No backlog at priority 1', 'No backlog at priority 2', 'No backlog at priority 3', 'No backlog at priority 4']
+        info = info.split("\r\n")
+        try:
+            result = (info[1],info[2],info[3],info[4],info[5],)
+        except IndexError:
+            result = None
+        if not result:
+            result = ("Error Getting Backlog/Fees","Not Available","Not Available","Not Available","Not Available")
+        self.debug("fee result",result,1)
+        return result
+
+    def balance(self,grandTotal = False,verbose = True):
+
+        if self.postHydra:
+            if grandTotal:
+                cmd = "account"
+                thisfaster = self.patterns["balance"]
+            else:
+                cmd = "balance"
+                thisfaster = r"nlock[^\\]+"
+            info = self.walletCmdHack(cmd,verbose=verbose,timeout = 10,faster = thisfaster)
         else:
             info = self.walletCmd("balance",verbose=verbose)
-        self.debug("balance",info)
+        self.debug("balance info",info,2)
         #info = info.replace("balance","",1).replace("\r\n","")
         match = self.patterns["balance"].search(info)
         if match:
-            return match.group("balance"),match.group("unlocked")
+            result = (match.group("balance"),match.group("unlocked"))
+        else:
+            result = ("X.XXXXXXXXXXXX","X.XXXXXXXXXXXX")
 
-        return "X.XXXXXXXXXXXX","X.XXXXXXXXXXXX"
+        self.debug("balance result",result,1)
+        return result
 
     def address(self,verbose = True):
         if self.postHydra:
@@ -281,10 +324,11 @@ class Wallet(object):
         else:
             info = self.walletCmd("address",verbose=verbose)
         #info = self.walletCmd("address",verbose=verbose)
-        self.debug("address",info)
-        matches = re.findall(self.patterns["address"],info)
+        self.debug("address info",info,2)
+        result = re.findall(self.patterns["address"],info)
         #info = info.replace("address","",1).replace("\r\n","")
-        return matches
+        self.debug("address result",result,1)
+        return result
 
     def address_book(self,verbose = True,add=None):
         #add should be a tuple (<address>,<description>|None)
@@ -299,7 +343,7 @@ class Wallet(object):
         else:
             info = self.walletCmd("address_book",verbose=verbose)
         #info = self.walletCmd(cmd,verbose=verbose)
-        self.debug("address_book",info)
+        self.debug("address_book info",info,2)
         entries = re.findall(self.patterns["address_book"],info)
         book = {}
         for e in entries:
@@ -310,11 +354,11 @@ class Wallet(object):
             else:
                 entry.update({"description":parts.group("desc")[1:]})
             entry.update({"menu": parts.group("index") + ": |" + parts.group("desc")[1:14] + "| " +  parts.group("address")[:8] + ".. <" + parts.group("payid")[:5] + "...>" })
-            print("entry:")
+
 
             book.update({parts.group("index"):entry})
         #info = info.replace("address","",1).replace("\r\n","")
-
+        self.debug("address_book result",book,1)
         return book
     #def transferViewOnly(self,destAddress, amount, priority = "unimportant",autoConfirm = 0, verbose = True):
     #
@@ -330,30 +374,30 @@ class Wallet(object):
             i = self.child.expect([pexpect.TIMEOUT, WALLET_IMPOSTER_PROMPT ,faster,WALLET_PASSWORD_PROMPT,WALLET_ISOKAY_PROMPT,pexpect.EOF], timeout = timeout)
             if i == 0: # Timeout: this is where we might think we're actually done
                 #self.haltAndCatchFire('TIMEOUT ERROR! Wallet did not return within TIMEOUT limit %s' % self.TIMEOUT)
-                self.debug("imposter timeout: %s"%cmd,self.child.before)
+                self.debug("imposter timeout: %s"%cmd,self.child.before,4)
                 self.hack_buffer += self.child.before
                 self.child.sendline("get_to_the_prompt")
-                self.debug("hack","get_to_the_prompt")
+                self.debug("hack","get_to_the_prompt",4)
                 k = self.child.expect([pexpect.TIMEOUT, "unknown command: get_to_the_prompt"], timeout = 2)
                 if k == 0:
-                    self.debug("HACK timeout: %s"%cmd,self.child.before)
+                    self.debug("HACK timeout: %s"%cmd,self.child.before,4)
                     self.haltAndCatchFire('TIMEOUT ERROR! Wallet cmd hack did not return within TIMEOUT limit')
                     break
                 elif k == 1:
                     self.ready = True
                     break
             elif i == 1: # WALLET_IMPOSTER_PROMPT
-                self.debug("got faux prompt: %s"%cmd,self.child.before)
+                self.debug("got faux prompt: %s"%cmd,self.child.before,3)
                 self.hack_buffer += self.child.before
 
             elif i ==2:  # faster
-                self.debug("got faster: %s"%cmd,self.child.before + self.child.after)
+                self.debug("got faster: %s"%cmd,self.child.before + self.child.after,3)
                 self.hack_buffer += self.child.before + self.child.after
                 self.ready = True
                 break
 
             elif i ==3:  #password Prompt
-                self.debug("got password Prompt: %s"%cmd,self.child.before)
+                self.debug("got password Prompt: %s"%cmd,self.child.before,2)
                 if verbose:
                     print(self.child.before + WALLET_PASSWORD_PROMPT + " <password supplied>",end="")
                 self.child.sendline(self.rawPassword)
@@ -366,35 +410,35 @@ class Wallet(object):
                         self.child.sendline("Y")
                     else:
                         self.child.sendline("N")
-                        self.ready
+                        self.ready = False
                         break
                 else:
                     self.child.sendline("Y")
 
             elif i ==5:   # EOF ...WTF
-                self.debug("EOF Before",(self.child.before))
-                self.debug("EOF After",(self.child.after))
+                self.debug("EOF Before",(self.child.before),0)
+                self.debug("EOF After",(self.child.after),0)
                 break
 
             else:
-                self.debug("broke, got nothing: %s"%cmd,self.child.before)
+                self.debug("broke, got nothing: %s"%cmd,self.child.before,0)
                 break
 
-        self.debug("Final Hack Buffer: %s"%cmd,self.hack_buffer)
+        self.debug("Final Hack Buffer: %s"%cmd,self.hack_buffer,3)
         self.filterBuffer = ""
         #final = self.hack_buffer.replace("\x1b[0m","").replace("\x1b[1;31m","").replace("\x1b[1;37m","").replace("\x1b[1;33m","").strip()
         final = re.sub(WALLET_ALL_PROMPT,'',self.hack_buffer)
         final = re.sub(WALLET_LINE_CLEAR,'',final)
         final = re.sub(WALLET_COLOR,'',final)
         self.hack_buffer = ""
-        if verbose:
+        if False:
             print(self.child.before,end="")
             print(self.child.after,end="")
         if not self.ready:
             self.haltAndCatchFire("Automation Deadend: Wallet took us to somewhere we didn't plan")
         else:
 
-            return final
+            return final.strip()
 
 
     #############################################################################################################
@@ -501,19 +545,20 @@ if __name__ == "__main__":
     hsleep = 2
     time.sleep(hsleep)
     got = wallet.address()
-    wallet.debug("result: address",got)
+
     time.sleep(hsleep)
     got = wallet.status()
-    wallet.debug("result: status",got)
+
     time.sleep(hsleep)
     got = wallet.balance()
-    wallet.debug("result: balance",got)
+
     time.sleep(hsleep)
     got = wallet.address_book()
-    wallet.debug("result: address_book",got)
 
-    got = wallet.transfer(priority = "unimportant", destAddress = "A16nFcW5XuU6Hm2owV4g277yWjjY6cVZy5YgE15HS6C8JujtUUP51jP7pBECqk78QW8K78yNx9LB4iB8jY3vL8vw3JhiQuX", amount = ".65",autoConfirm = 1)
-    wallet.debug("result: transfer",got)
+    got = wallet.fee()
+
+    #got = wallet.transfer(priority = "unimportant", destAddress = "A16nFcW5XuU6Hm2owV4g277yWjjY6cVZy5YgE15HS6C8JujtUUP51jP7pBECqk78QW8K78yNx9LB4iB8jY3vL8vw3JhiQuX", amount = ".65",autoConfirm = 1)
+    #wallet.debug("result: transfer",got)
     wallet.stopWallet()
 
     """

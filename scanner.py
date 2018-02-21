@@ -171,10 +171,10 @@ class Payload(object):
                     self._use(match)
 
     def stitched(self):
-        if self.__bool__():
+        if self.status():
             return "".join(i for i in self.bin).strip()
         else:
-            raise Exception("Payload Error: Payload was not ready to be stitched\n%s" % self.bin)
+            raise Exception("Payload Error: Payload was not ready to be stitched\n%r" % self.bin)
 
     def prepared(self):
         finished = base64.b64decode(self.stitched())
@@ -193,14 +193,15 @@ class Payload(object):
         actual_crc = "%x"%(prev & 0xFFFFFFFF)
         return bool(self.crc == actual_crc)
 
-    def __bool__(self):
+    def status(self):
         if self.bin:
             if not 0 in self.bin:
                 return True
         return False
 
-    def __nonzero__(self):
-        return self.__bool__()
+    def reset(self):
+        self.pattern = re.compile(self.msgType + r",(?P<crc>[a-z0-9]{8}),(?P<rank>[0-9]{1,3})/(?P<total>[0-9]{1,3}):(?P<payload>\S+)")
+        self.bin = []
 
 if __name__ == "__main__":
     from PIL import ImageTk
@@ -214,7 +215,7 @@ if __name__ == "__main__":
         if codes:
             status.config(text = "found:  " + codes[0].split(":")[0])
         else:
-            status.config(text = "Nothing Found")
+            status.config(text = "<nothing found>")
         root.attributes('-topmost', 1)
         root.after(400,get_scan)
 
