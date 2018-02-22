@@ -85,7 +85,9 @@ class Wallet(object):
             self.patterns.update({"address_book_parts" : re.compile(r"Index: (?P<index>[0-9]+)\s+Address: (?P<address>[489AB][a-zA-Z0-9]{94})\s+Payment ID: <(?P<payid>[0-9]+)>\s+Description:(?P<desc>[\S ]*)[\r\n]*")})
             self.patterns.update({"balance": re.compile(r"Balance: (?P<balance>[0-9\.]+), unlocked balance: (?P<unlocked>[0-9\.]+)")})
             self.patterns.update({"status": re.compile(r"Refreshed[^\\]+")})
-
+            self.patterns.update({"accounts_parts": re.compile(r"(?P<index>[0-9]{1,5}) (?P<address>[a-zA-z0-9]{6})[ ]+(?P<balance>[0-9.]+)[ ]+(?P<unlocked>[0-9.]+)[ ]+(?P<label>[\S ]*)")})
+            self.patterns.update({"accounts_individual": re.compile(r"[0-9]{1,5} [a-zA-z0-9]{6}[ ]+[0-9.]+[ ]+[0-9.]+[ ]+[\S ]*")})
+            self.patterns.update({"accounts_tag": re.compile(r"(?P<tag>[\S ]+)[\s]+Tag's description:")})
         #####################################################
         self.walletFile = walletFile.split()[0]  #split is to defeat sneaky attack
         if not walletFile:
@@ -177,6 +179,7 @@ class Wallet(object):
             else:
                 self.ready = True
         self.TIMEOUT = 45
+        self.boot = self.child.before
         self.busy = False
         print(self.child.before,end="")
         print(self.child.after,end="")
@@ -318,9 +321,109 @@ class Wallet(object):
         self.debug("balance result",result,1)
         return result
 
+    def account_switch(self,index = 0,verbose = True):
+
+        if self.postHydra:
+            cmd = "account switch %s" % int(index)
+            thisfaster = self.patterns["balance"]
+
+            info = self.walletCmdHack(cmd,verbose=verbose,timeout = 10,faster = thisfaster)
+        else:
+            info = self.walletCmd("balance",verbose=verbose)
+        self.debug("account switch info",info,2)
+        #info = info.replace("balance","",1).replace("\r\n","")
+        match = self.patterns["balance"].search(info)
+        if match:
+            result = (match.group("balance"),match.group("unlocked"))
+        else:
+            result = ("X.XXXXXXXXXXXX","X.XXXXXXXXXXXX")
+
+        self.debug("account switch",result,1)
+        return info,result
+
+    def account_helper(self,info):
+        useful = info.split("Accounts with tag: ")
+        self.debug("original tags useful",useful,3)
+        useful = [i for i in useful if "tag" in i.lower()]
+        self.debug("post split tags useful",useful,3)
+        useful2 = []
+        try:
+            for i in useful:
+                self.debug("looking for tag",i,3)
+                if not "ntagged accounts:" in i:
+                    useful2.append(i)
+                else:
+                    first = i.split("Untagged accounts:")[0]
+                    useful2.append(first)
+                    second = "<no tag>\r\nTag's description: \r\n" + i.split("Untagged accounts:")[1]
+                    self.debug("potential untagged",second,3)
+                    useful2.append(second)
+            useful3 = {}
+            for subset in useful2:
+                self.debug("subset",subset,3)
+                t_match = self.patterns["accounts_tag"].search(subset)
+                if t_match is None:
+                    continue
+                self.debug("t_match",t_match,3)
+                tag = t_match.group("tag")
+                u_accounts = re.findall(self.patterns["accounts_individual"],subset)
+                for a in u_accounts:
+                    match = self.patterns["accounts_parts"].search(a)
+                    a_index = match.group("index")
+                    a_address = match.group("address")
+                    a_balance = match.group("balance")
+                    a_unlocked = match.group("unlocked")
+                    a_label = match.group("label")
+
+                    a_menu =  a_index + " " + a_address
+                    if a_label:
+                        a_menu += " " + a_label[:18]
+                    a_menu +=  " " + "(" + tag + ")"
+                    '''
+                    a_menu = ""
+                    if a_label:
+                        a_menu +=  a_label[:18] +  " "
+                    a_menu +=  a_index + " " + a_address  +  " " + "(" + tag + ")"
+                    '''
+                    useful3.update({a_menu:{"index":a_index, "address": a_address, "balance": a_balance,"unlocked":a_unlocked,"label":a_label,"tag":tag}})
+        except Exception as e:
+            self.debug("account read Error",str(e),1)
+            useful3 = {}
+        try:
+            mymenu =  sorted(useful3.items(), key=lambda x: x[1]["unlocked"],reverse = True)
+            mymenu = [a for a,b in mymenu]
+        except Exception as e:
+            self.debug("account mymenu Error",str(e),1)
+            mymenu = []
+        self.debug("account_helper menu",mymenu,3)
+        return useful3,mymenu
+
+    def account(self,verbose = True):
+
+        if self.postHydra:
+            cmd = "account"
+            thisfaster = self.patterns["balance"]
+            info = self.walletCmdHack(cmd,verbose=verbose,timeout = 10,faster = thisfaster)
+            useful,mymenu = self.account_helper(info)
+            result = (info,useful,mymenu)
+            self.debug("account result",result,1)
+            return result
+        else:
+            info = self.walletCmd("balance",verbose=verbose)
+        self.debug("account info",info,2)
+        #info = info.replace("balance","",1).replace("\r\n","")
+        match = self.patterns["balance"].search(info)
+        if match:
+            result = (match.group("balance"),match.group("unlocked"))
+        else:
+            result = ("X.XXXXXXXXXXXX","X.XXXXXXXXXXXX")
+
+        self.debug("account result",result,1)
+        return result
+
     def address(self,verbose = True):
         if self.postHydra:
-            info = self.walletCmdHack("address",verbose=verbose,)
+            info = self.walletCmdHack("address",verbose=verbose,timeout = 2)
         else:
             info = self.walletCmd("address",verbose=verbose)
         #info = self.walletCmd("address",verbose=verbose)
@@ -339,7 +442,7 @@ class Wallet(object):
                 cmd += " %s" % add[1]
 
         if self.postHydra:
-            info = self.walletCmdHack("address_book",verbose=verbose,timeout=.6)
+            info = self.walletCmdHack("address_book",verbose=verbose,timeout=1.6)
         else:
             info = self.walletCmd("address_book",verbose=verbose)
         #info = self.walletCmd(cmd,verbose=verbose)
@@ -410,8 +513,8 @@ class Wallet(object):
                         self.child.sendline("Y")
                     else:
                         self.child.sendline("N")
-                        self.ready = False
-                        break
+
+
                 else:
                     self.child.sendline("Y")
 
@@ -436,9 +539,7 @@ class Wallet(object):
             print(self.child.after,end="")
         if not self.ready:
             self.haltAndCatchFire("Automation Deadend: Wallet took us to somewhere we didn't plan")
-        else:
-
-            return final.strip()
+        return final.strip()
 
 
     #############################################################################################################
@@ -541,8 +642,11 @@ class Wallet(object):
 
 
 if __name__ == "__main__":
-    wallet = Wallet(walletFile = os.path.join(MONERO_DIR,"newtestview"), password = '',daemonHost="testnet.xmrchain.net", testnet = True,cold = 0,debug = True,postHydra = True)
+    import pprint as pp
+    wallet = Wallet(walletFile = os.path.join(MONERO_DIR,"newtestnet"), password = '',daemonHost="testnet.xmrchain.net", testnet = True,cold = 0,debug = 3,postHydra = True)
     hsleep = 2
+    fast_account = wallet.account_helper(wallet.boot)
+    pp.pprint(fast_account)
     time.sleep(hsleep)
     got = wallet.address()
 
@@ -556,7 +660,9 @@ if __name__ == "__main__":
     got = wallet.address_book()
 
     got = wallet.fee()
-
+    r = wallet.account()
+    pp.pprint(r[1])
+    wallet.account_switch(index = 1)
     #got = wallet.transfer(priority = "unimportant", destAddress = "A16nFcW5XuU6Hm2owV4g277yWjjY6cVZy5YgE15HS6C8JujtUUP51jP7pBECqk78QW8K78yNx9LB4iB8jY3vL8vw3JhiQuX", amount = ".65",autoConfirm = 1)
     #wallet.debug("result: transfer",got)
     wallet.stopWallet()

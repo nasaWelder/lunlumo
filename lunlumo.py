@@ -50,6 +50,7 @@ import hashlib
 import math
 import os
 import os.path
+import re
 #import Tkinter as tk
 from glob import glob
 
@@ -64,17 +65,28 @@ class Lunlumo(ttk.Frame):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
-        self.wallet = wex.Wallet(walletFile, password,daemonAddress, daemonHost,testnet,cold,gui=self,postHydra = True,debug = 33)
+        self.busy = False
+        self.cold = cold
+        self.wallet = wex.Wallet(walletFile, password,daemonAddress, daemonHost,testnet,self.cold,gui=self,postHydra = True,debug = 33)
+        self.initAddress = re.findall(self.wallet.patterns["address"],self.wallet.boot)[0]
         self.address_menu = None
+        self.account_menu = ["0 %s Primary Account (loading tag)" % self.initAddress[:6]]
+        self.primary_account = self.account_menu[0]
+        self.earliestBalance = 3000
+        self.bg = tk.PhotoImage(file = "misc/genericspace2.gif")
+        self.bg1 = tk.PhotoImage(file = "misc/genericspace.gif")
+        self.bg3 = tk.PhotoImage(file = "misc/genericspace3.gif")
+        self.bgv = tk.PhotoImage(file = "misc/genericspacev.gif")
+
         if background:
-            self.bg = tk.PhotoImage(file = background)
+
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
         try:
             self.sidebar = Sidebar(self,self)
-            self.statusbar = Statusbar(app,self)
-            self.receivepage = Receive(self,self,background =background )
-            self.sendpage = SendPane(self,self,background =background )
+            self.statusbar = Statusbar(self,self)
+            self.receivepage = Receive(self,self,background = background )
+            self.sendpage = SendPane(self,self,background = background )
 
             self.sidebar.grid(row=0,column = 0,sticky=tk.NW)
             self.statusbar.grid(row=2,column = 0, columnspan =3,sticky=tk.W+tk.E)
@@ -82,10 +94,19 @@ class Lunlumo(ttk.Frame):
             self.sendpage.grid(row=0,column = 1 ,sticky=tk.NW+tk.SE,padx=(20,20),pady=(20,20))
 
             #self._root().after(100,self.receivepage.grid_propagate,False)
+
         except Exception as e:
             self.wallet.stopWallet()
             MessageBox.showerror("Startup Error",str(e))
             raise
+
+        self._root().after(6000,self.receivepage.idle_refresh)
+        self._root().after(8000,self.statusbar.idle_refresh,False)
+        self._root().after(20000,self.sendpage.idle_refresh)
+        if not self.cold:
+            self._root().after(2500,self.sidebar.refresh_account,True,None)
+        else:
+            self._root().after(12000,self.sidebar.refresh_account)
 
     def confirm(self,msg):
         return MessageBox.askokcancel("Please Confirm!",msg)
@@ -100,42 +121,98 @@ class Sidebar(ttk.Frame):
         self.app = app
         self.parent = parent
         self.delay = delay
+        self.bg3 = tk.PhotoImage(file = "misc/genericspace3.gif")
+        self.bg1 = tk.PhotoImage(file = "misc/genericspace.gif")
+        self.bg2 = tk.PhotoImage(file = "misc/genericspace2.gif")
+        self.bgv = tk.PhotoImage(file = "misc/genericspacev.gif")
         if background:
-            self.bg = tk.PhotoImage(file = background)
-            self.bglabel = tk.Label(self, image=self.bg)
+
+            self.bglabel = tk.Label(self, image=self.bg3)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
         self.logo = tk.PhotoImage(file = "misc/2legitmoonsmaller.gif")
         self.showLogo = ttk.Label(self,image= self.logo)
         self.balFrame =  tk.Frame(self,highlightcolor = "white",highlightbackground = "white",highlightthickness=3,background ="#4C4C4C")
         if background:
             self.balbg = tk.PhotoImage(file = background)
-            self.balbglabel = tk.Label(self.balFrame, image=self.bg)
+            self.balbglabel = tk.Label(self.balFrame, image=self.balbg)
             self.balbglabel.place(x=0, y=0, relwidth=1, relheight=1)
-        initBal = self.app.wallet.patterns["balance"].search(self.app.wallet.child.before)
+        initBal = self.app.wallet.patterns["balance"].search(self.app.wallet.boot)
         if not initBal:
             initBal = ("X.XXXXXXXXXXXX","X.XXXXXXXXXXXX")
-            self._root().after(1000,self.idle_refresh)
+            self._root().after(self.app.earliestBalance,self.idle_refresh)
         else:
             try:
                 initBal = (initBal.group("balance"),initBal.group("unlocked"))
             except:
                 initBal = ("X.XXXXXXXXXXXX","X.XXXXXXXXXXXX")
-            self._root().after(15000,self.idle_refresh)
+            self._root().after(25000,self.idle_refresh)
+        self.account_picker = MyWidget(self.app,self.balFrame,handle = "Account",cwidth = 21,
+                                       choices = self.app.account_menu,startVal = self.app.primary_account,cmd = self.account_chosen)
         self.balLabel = ttk.Label(self.balFrame,text = "Balance:",style = "app.TLabel",)
         self.balance = ttk.Label(self.balFrame,text = initBal[0],style = "app.TLabel",)
         self.unlockedLabel =ttk.Label(self.balFrame,text = "Unlocked:",style = "unlocked.TLabel",)
         self.unlocked = ttk.Label(self.balFrame,text =initBal[1],style = "unlocked.TLabel",)
-        self.balLabel.grid(row=0,column=0,sticky=tk.W,padx =(5,0),pady=(5,2))
-        self.balance.grid(row=1,column=0,sticky=tk.W,padx =(5,0),pady=(0,2))
-        self.unlockedLabel.grid(row=2,column=0,sticky=tk.W,padx =(5,0),pady=(0,2))
-        self.unlocked.grid(row=3,column=0,sticky=tk.W,padx =(5,0),pady=(0,5))
+
+
+        self.balLabel.grid(row=1,column=0,sticky=tk.W,padx =(5,0),pady=(5,2))
+        self.balance.grid(row=2,column=0,sticky=tk.W,padx =(5,0),pady=(0,2))
+        self.unlockedLabel.grid(row=3,column=0,sticky=tk.W,padx =(5,0),pady=(0,2))
+        self.unlocked.grid(row=4,column=0,sticky=tk.W,padx =(5,0),pady=(0,5))
+
+        #self.go_send = tk.Button(self.extra,text = "send",command =self.get,image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
+        self.go_send = tk.Button(self,text = "send",command = self.go_send_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "red",image = self.bgv,compound = tk.CENTER,cursor = "exchange")
+        self.go_receive = tk.Button(self,text = "receive",command = self.go_send_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "green",image = self.bg2,compound = tk.CENTER,cursor = "plus")
+        self.go_extras = tk.Button(self,text = "extras",command = self.go_send_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "blue",image = self.bg3,compound = tk.CENTER,cursor = "trek")
+        self.go_donate = tk.Button(self,text = "donate",command = self.go_send_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "orange",image = self.bgv,compound = tk.CENTER,cursor = "heart")
+
+
 
         self.showLogo.grid(row=0,column=0,sticky=tk.W)
-        self.balFrame.grid(row=1,column=0,sticky=tk.W+tk.E)
+        self.account_picker.grid(row=0,column=0,padx =(5,0),pady=(5,5),sticky=tk.W+tk.E)
+        self.balFrame.grid(row=2,column=0,sticky=tk.W+tk.E)
+        self.go_send.grid(row=3,column=0,sticky=tk.W+tk.E)
+        self.go_receive.grid(row=4,column=0,sticky=tk.W+tk.E)
+        self.go_extras.grid(row=5,column=0,sticky=tk.W+tk.E)
+        self.go_donate.grid(row=6,column=0,sticky=tk.W+tk.E)
+        self._root().after(14000,self.go_donate.flash)
+    def go_send_event(self):
+        pass
+
+    def account_chosen(self):
+        try:
+            choice = self.account_picker.value.get()
+            index = self.app.account_dict[choice]["index"]
+            info,bals = self.app.wallet.account_switch(index = index)
+            self.balance.configure(text = bals[0])
+            self.unlocked.configure(text = bals[1])
+            self.app.showinfo(info.split("\r\n",1)[-1].replace("Currently selected account: ","Currently selected account:\n"))
+        except Exception as e:
+            MessageBox.showerror("Account Switch Error",str(e) + "\nUnknown account state. Proceed with caution.")
+
+    def refresh_account(self,boot = False,current = None):
+        if boot:
+            self.app.account_help = self.app.wallet.account_helper(self.app.wallet.boot)
+        else:
+            result = self.app.wallet.account()
+            self.app.account_help = (result[1],result[2])
+        print("account help",(self.app.account_help))
+        self.app.account_dict = self.app.account_help[0]
+        print("account dict",(self.app.account_dict))
+        for menu in list(self.app.account_dict.keys()):
+            print("account menu",(menu))
+            print("account index",self.app.account_dict[menu]["index"])
+            if int(self.app.account_dict[menu]["index"]) == 0:
+                self.app.primary_account = menu
+
+        self.app.account_menu = self.app.account_help[1]
+        self.account_picker.value["values"] = list(self.app.account_menu)
+        if not current:
+            self.account_picker.value.set(self.app.primary_account)
+
 
     def refresh(self):
-        if not self.parent.wallet.busy:
-            now = self.parent.wallet.balance(grandTotal = True)
+        if not self.parent.wallet.busy and not self.app.busy:
+            now = self.parent.wallet.balance(grandTotal = False)
             self.balance.configure(text = now[0])
             self.unlocked.configure(text = now[1])
             self._root().after(self.delay,self.idle_refresh)
@@ -143,6 +220,8 @@ class Sidebar(ttk.Frame):
             self._root().after(5000,self.idle_refresh)
     def idle_refresh(self,something = None):
         self.app.after_idle(self.refresh)
+
+
 class Statusbar(ttk.Frame):
     def __init__(self,app, parent,delay = 70000,background = "misc/genericspace.gif", *args, **kwargs):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
@@ -158,7 +237,7 @@ class Statusbar(ttk.Frame):
         self.status.grid(row = 0, column =0)
         self.copyright.grid(row = 0, column =1,sticky = tk.E,padx=(80,0))
 
-        self._root().after(4000,self.idle_refresh,False)
+
     def refresh(self,subRefresh = True):
         if not self.parent.wallet.busy:
             now = self.parent.wallet.status(refresh=subRefresh)
@@ -237,9 +316,13 @@ class Destination(ttk.Frame):
     def get(self):
         dest = self.dest_address.get("1.0",tk.END).strip()
         amount = self.amount.get()[0]
-        if len(dest) == 95:
-            if float(amount) and float(amount) > 0.000000:
-                return dest + " " + amount
+        try:
+            if len(dest) == 95:
+                if float(amount) and float(amount) > 0.000000:
+                    return dest + " " + amount
+        except ValueError as e:
+            err = "ERROR in tx #%s"%self.name.split(":")[0] + str(e)
+            raise Exception(err)
         return None
 
 
@@ -256,8 +339,8 @@ class Receive(ttk.Frame):
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
         self.heading = ttk.Label(self,text = "Receive",style = "heading.TLabel")
         self.addresses = []
-        self.initAddress = self.app.wallet.patterns["address"].search(self.app.wallet.child.before)
-        self.textAddress = MyWidget(self.app,self,handle = "Address",choices = [self.initAddress.group(0)],cwidth = 50,startVal =  self.initAddress.group(0) )
+
+        self.textAddress = MyWidget(self.app,self,handle = "Address",choices = [self.app.initAddress],cwidth = 50,startVal =  self.app.initAddress )
         self.amountVar = tk.StringVar()
         self.amount = MyWidget(self.app,self,handle = "Amount",choices = "entry",optional = True,activeStart=False)
         self.amount.value.configure(textvariable = self.amountVar)
@@ -270,7 +353,7 @@ class Receive(ttk.Frame):
         self.textAddress.grid(row=1,column=0,columnspan = 2,sticky = tk.W)
         self.amount.grid(row=2,column=0,sticky = tk.E,pady= (10,0))
         self.qr.grid(row=0,column=2,sticky = tk.W,padx=(30,0),pady= (30,50),rowspan = 10)
-        self._root().after(5000,self.idle_refresh)
+
 
     def idle_refresh(self,something = None):
         self._root().after_idle(self.refresh)
@@ -303,7 +386,7 @@ class Receive(ttk.Frame):
         self.qr.config(image = self.code)
 
 class SendPane(ttk.Frame):
-    def __init__(self,app, parent,background = None,delay = 25000, *args, **kwargs):
+    def __init__(self,app, parent,background = None,delay = 35000, *args, **kwargs):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
@@ -367,24 +450,28 @@ class SendPane(ttk.Frame):
         self.heading.grid(row=0,column=0,sticky = tk.W,pady= (10,20))
         self.destFrame.grid(row=1,column=0,columnspan = 3,pady = (0,25),)
         self.extra.grid(row=2,column=0,columnspan = 3,sticky = tk.E,pady=(10,0),padx=(0,15))
-        self._root().after(6000,self.idle_refresh)
+
 
     def get(self):
         # transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] <address> <amount> [<payment_id>]
         tx_string = "transfer %s %s" % (self.priority.get()[0],self.privacy.get()[0])
         dest_substring = ""
-        for dest in self.dests:
-            result = dest.get()
-            if result:
-                dest_substring += " " + result
+        try:
+            for dest in self.dests:
+                result = dest.get()
+                if result:
+                    dest_substring += " " + result
+        except Exception as e:
+            MessageBox.showerror("Transaction Error",str(e) )
+            return
         if not dest_substring:
             MessageBox.showerror("Transaction Error","No valid destination + amounts found" )
             return
         tx_string += dest_substring
         pay_id = self.payment_id_entry.get("1.0",tk.END).strip()
         if pay_id:
-            if not len(pay_id) == 64:
-                MessageBox.showerror("Transaction Error","Invalid Payment ID\n%s" % pay_id)
+            if not len(pay_id) == 64 or not pay_id.isalnum():
+                MessageBox.showerror("Transaction Error","Invalid Payment ID\n\n%s\n\nMust be 64 chars and alphanumeric" % pay_id)
                 return
             tx_string += " " + pay_id
         print("Transfer cmd:\n",repr(tx_string))
@@ -483,16 +570,12 @@ class Login(ttk.Frame):
         self.launch = tk.Button(self,text = "launch!",command =self.launch,cursor = "shuttle",image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
         #MyWidget(app, parent,handle,choices=None,subs = {},allowEntry = False,optional = False,activeStart=1,ewidth = 8,cwidth = None, cmd = None)
         self.daemon = MyWidget(self.app,self,handle = "daemon",startVal = "None (cold wallet)",allowEntry = False,cwidth = 18,cipadx = 1,
-                                choices = ["None (cold wallet)","default, already running","daemonHost","daemonAddress"],
-                               subs={"daemonHost":{"handle":"host","choices":"entry","ewidth":20,"allowEntry":False},  # allowEntry is for comboboxes when choices is a list
-                                     "daemonAddress":{"handle":"host","choices":"entry","ewidth":20,"allowEntry":False,
-                                                       "subs":{"entry":{"handle":"port","choices":"entry","ewidth":20,"allowEntry":False}},
-                                                      },
-                                     })
+                                choices = ["None (cold wallet)","local, already running","other, host[:port]",],
+                               subs={"other, host[:port]":{"handle":"host[:port]","choices":"entry","ewidth":20,"allowEntry":False},}) # allow Entry not applicable
 
-        self.showLogo.grid(row=0,column=0,rowspan=1,columnspan=2)
+        self.showLogo.grid(row=0,column=0,rowspan=1,columnspan=2,sticky = tk.E)
         #self.heading.grid(row=0,column=1,sticky=tk.W)
-        self.walletFile.grid(row=1,column=0,pady=(5,0),columnspan=2)
+        self.walletFile.grid(row=1,column=0,pady=(5,0),columnspan=2,sticky = tk.W+tk.E)
         self.testnet.grid(row=3,column=0,padx=(5,0),pady=10)
         self.launch.grid(row=3,column=1,padx=(5,0),pady= 5)
         self.daemon.grid(row=2,column=0,pady=(10,15),rowspan=1,columnspan=2)
@@ -502,14 +585,21 @@ class Login(ttk.Frame):
         daemon = self.daemon.get()
         if daemon[0] == "None (cold wallet)":
             vals.update({"cold":True})
-        elif  daemon[0] == "default, already running":
+        elif  daemon[0] == "local, already running":
             vals.update({"cold":False})
-        elif daemon[0] == "daemonHost":
-            vals.update({"daemonHost":daemon[1]})
-            vals.update({"cold":False})
-        elif daemon[0] == "daemonAddress":
-            vals.update({"daemonAddress":daemon[1]+ ":" + daemon[2] })
-            vals.update({"cold":False})
+        elif daemon[0] == "other, host[:port]":
+            both = daemon[1].split(":")
+            host = daemon[1].split(":")[0]
+            if len(both)==1:
+                vals.update({"daemonHost":daemon[1]})
+                vals.update({"cold":False})
+            elif len(both) == 2:
+                port = daemon[1].split(":")[1]
+                vals.update({"daemonAddress":host + ":" + port})
+                vals.update({"cold":False})
+            else:
+                MessageBox.showerror("Login Error","Could not parse daemon host[:port]\n\ne.x. testnet.xmrchain.net\n\ne.x. testnet.xmrchain.net:28081")
+                return
 
         self.final = vals
         self.app.destroy()
@@ -545,12 +635,13 @@ class MyWidget(ttk.Frame):
             else:
                 state = "enabled"
             if not cwidth: cwidth = len(max(self.choices,key=len))
-            self.value = ttk.Combobox(self,values = self.choices,state = state,width=cwidth,style = "app.TCombobox")
+            self.value = ttk.Combobox(self,values = self.choices,state = state,width=cwidth,postcommand = self.wideMenu,style = "app.TCombobox")
             self.value.bind('<<ComboboxSelected>>',self.findSubs)
+            #self.value.bind('<Configure>', self.wideMenu)
         if self.choices == "entry":
             state = "enabled" if not static else "readonly"
             self.value = ttk.Entry(self,width=ewidth,style = "app.TEntry",state = state)
-            self._root().after(0,self.findSubs)
+            self._root().after(0,self.findSubs,None,False)
 
         self.title = ttk.Label(self, text = self.handle,style = "app.TLabel")
         self.title.pack(anchor = tk.W)
@@ -559,13 +650,26 @@ class MyWidget(ttk.Frame):
             if not self.startVal is None:
                 if not self.choices == "entry":
                     self.value.set(self.startVal)
-                    self._root().after(0,self.findSubs)
+                    self._root().after(0,self.findSubs,None,False)
                 else:
                     self.value.insert(0,startVal)
-                    self._root().after(0,self.findSubs)
+                    self._root().after(0,self.findSubs,None,False)
         if self.optional:
             if activeStart:
                 self.optState.set(1)
+
+    def wideMenu(self,event = None):
+        try:
+            global mystyle
+            if self.handle in ["Account"]:
+                print("got Account wideMenu")
+                mystyle.configure("TCombobox",postoffset = (0,0,150,0))
+                self.value.config(style = "TCombobox")
+            else:
+                mystyle.configure("TCombobox",postoffset = (0,0,0,0))
+        except Exception as e:
+            print(str(e))
+
 
     def get(self):
         #print(self.handle,self.sub,bool(self.sub))
@@ -594,7 +698,7 @@ class MyWidget(ttk.Frame):
             print("someone tried to get:%s" %self.handle)
             return #[self.value.get()]
 
-    def findSubs(self,event = None):
+    def findSubs(self,event = None,not_init = True):
         if self.sub:
             self.sub.destroy()
             self.sub = None
@@ -607,7 +711,7 @@ class MyWidget(ttk.Frame):
                 self.sub.pack(anchor = tk.E,pady=3)
             else:
                 pass
-        if self.cmd:
+        if self.cmd and not_init:
             self.cmd()
 
     def _grey(self,override = False):
@@ -1127,7 +1231,7 @@ if __name__ == "__main__":
     first = tk.Tk()
 
     first.configure(bg="#F2681C")
-    first.geometry("%dx%d%+d%+d" % (400, 500, 300, 150))  #(width, height, xoffset, yoffset)
+    first.geometry("%dx%d%+d%+d" % (400, 530, 300, 150))  #(width, height, xoffset, yoffset)
     bg = tk.PhotoImage(file = "misc/genericspace.gif")
     bglabel = tk.Label(first, image=bg)
     bglabel.bgimage = bg
@@ -1136,17 +1240,17 @@ if __name__ == "__main__":
     #first.option_add('*TCombobox*Listbox.font', ('Liberation Mono','8','normal'))
     #first.option_add('*TCombobox*Entry.font', ('Liberation Mono','8','normal'))
     first.title("lunlumo (login)")
-    style = ttk.Style()
-    style.theme_use('clam') #('clam', 'alt', 'default', 'classic')
-    style.configure("app.TLabel", foreground="white", background="black", font=('Liberation Mono','10','normal')) #"#4C4C4C")
-    style.configure("heading.TLabel", foreground="white", background="black",) #"#4C4C4C")
-    style.configure("app.TFrame", foreground="gray55", background="#4C4C4C",)
-    style.configure("app.TButton", foreground="gray55", background="#C6480E",activeforeground ="#F2681C",font=('Liberation Mono','10','normal'),height = 5  )#F2681C
-    style.configure("app.TCheckbutton", foreground="gray55", background="black") #"#4C4C4C")
-    style.configure("app.TCombobox", background="#F2681C",font=('Liberation Mono','12','normal'))
-    style.configure("app.TEntry", foreground="black", background="gray55",font=('Liberation Mono','12','normal'))
-    style.configure("pass.TEntry", foreground="gray55", background="gray55",insertofftime=5000)
-
+    mystyle = ttk.Style()
+    mystyle.theme_use('clam') #('clam', 'alt', 'default', 'classic')
+    mystyle.configure("app.TLabel", foreground="white", background="black", font=('Liberation Mono','10','normal')) #"#4C4C4C")
+    mystyle.configure("heading.TLabel", foreground="white", background="black",) #"#4C4C4C")
+    mystyle.configure("app.TFrame", foreground="gray55", background="#4C4C4C",)
+    mystyle.configure("app.TButton", foreground="gray55", background="#C6480E",activeforeground ="#F2681C",font=('Liberation Mono','10','normal'),height = 5  )#F2681C
+    mystyle.configure("app.TCheckbutton", foreground="gray55", background="black") #"#4C4C4C")
+    mystyle.configure("app.TCombobox", background="#F2681C",font=('Liberation Mono','12','normal'))#,selectbackground = "#D15101",fieldbackground = "#D15101")
+    mystyle.configure("app.TEntry", foreground="black", background="gray55",font=('Liberation Mono','12','normal'))
+    mystyle.configure("pass.TEntry", foreground="gray55", background="gray55",insertofftime=5000)
+    first.option_add("*TCombobox*Listbox*selectBackground", "#D15101")
     login = Login(first,first,background = "misc/genericspace.gif")
     login.pack()
 
@@ -1157,23 +1261,23 @@ if __name__ == "__main__":
         root = tk.Tk()
         #root.geometry("%dx%d%+d%+d" % (800, 500, 300, 150))  #(width, height, xoffset, yoffset)
         root.title("lunlumo")
-        style = ttk.Style()
+        mystyle = ttk.Style()
         bgr = tk.PhotoImage(file = "misc/genericspace2.gif")
         bglabelr = tk.Label(root, image=bgr)
         bglabelr.bgimage = bgr
         bglabelr.place(x=0, y=0, relwidth=1, relheight=1)
-        style.theme_use('clam') #('clam', 'alt', 'default', 'classic')
-        style.configure("app.TLabel", foreground="white", background="black",font=('Liberation Mono','12','normal')) #"#4C4C4C")
-        style.configure("unlocked.TLabel", foreground="light green", background="black",font=('Liberation Mono','12','normal')) #"#4C4C4C")
-        style.configure("smaller.TLabel", foreground="white", background="black",font=('Liberation Mono','10','normal')) #"#4C4C4C")
-        style.configure("heading.TLabel", foreground="white", background="black",font=('Liberation Mono','36','normal')) #"#4C4C4C")
-        style.configure("app.TFrame", foreground="gray55", background="#4C4C4C",)
-        style.configure("app.TButton", foreground="gray55", background="#D15101",activeforeground ="#F2681C")#F2681C
-        style.configure("app.TCheckbutton", foreground="gray55", background="black") #"#4C4C4C")
-        style.configure("app.TCombobox", background="#F2681C")
-        style.configure("app.TEntry", foreground="black", background="gray55")
-        style.configure("pass.TEntry", foreground="gray55", background="gray55",insertofftime=5000)
-
+        mystyle.theme_use('clam') #('clam', 'alt', 'default', 'classic')
+        mystyle.configure("app.TLabel", foreground="white", background="black",font=('Liberation Mono','12','normal')) #"#4C4C4C")
+        mystyle.configure("unlocked.TLabel", foreground="light green", background="black",font=('Liberation Mono','12','normal')) #"#4C4C4C")
+        mystyle.configure("smaller.TLabel", foreground="white", background="black",font=('Liberation Mono','10','normal')) #"#4C4C4C")
+        mystyle.configure("heading.TLabel", foreground="white", background="black",font=('Liberation Mono','36','normal')) #"#4C4C4C")
+        mystyle.configure("app.TFrame", foreground="gray55", background="#4C4C4C",)
+        mystyle.configure("app.TButton", foreground="gray55", background="#D15101",activeforeground ="#F2681C")#F2681C
+        mystyle.configure("app.TCheckbutton", foreground="gray55", background="black") #"#4C4C4C")
+        mystyle.configure("app.TCombobox", background="#F2681C",selectbackground = "#D15101") #postoffset = (0,0,500,0))
+        mystyle.configure("app.TEntry", foreground="black", background="gray55")
+        mystyle.configure("pass.TEntry", foreground="gray55", background="gray55",insertofftime=5000)
+        root.option_add("*TCombobox*Listbox*selectBackground", "#D15101")
         try:
             App = Lunlumo(root,root,**login.final)
         except Exception as e:
@@ -1198,18 +1302,18 @@ if __name__ == "__main__":
     sys.exit(0)
 
     root = tk.Tk()
-    style = ttk.Style()
-    style.theme_use('clam') #('clam', 'alt', 'default', 'classic')
-    style.configure("app.TLabel", foreground="gray55", background="black",font=('Liberation Mono','12','normal')) #"#4C4C4C")
-    style.configure("unlocked.TLabel", foreground="gray55", background="black",font=('Liberation Mono','12','normal')) #"#4C4C4C")
-    style.configure("heading.TLabel", foreground="gray55", background="black",font=('Liberation Mono','36','normal')) #"#4C4C4C")
-    style.configure("app.TFrame", foreground="gray55", background="black",)
-    style.configure("app.TButton", foreground="gray55", background="#D15101",activeforeground ="#F2681C")#F2681C
-    style.configure("app.TCheckbutton", foreground="gray55", background="black") #"#4C4C4C")
-    #style.configure("app.TCombobox", background="#F2681C")
-    style.configure("app.TEntry", foreground="black", background="gray40")
-    style.configure("pass.TEntry", foreground="gray55", background="gray55",insertofftime=5000)
-    root.option_add("*TCombobox*Listbox*Background", 'pink')
+    mystyle = ttk.Style()
+    mystyle.theme_use('clam') #('clam', 'alt', 'default', 'classic')
+    mystyle.configure("app.TLabel", foreground="gray55", background="black",font=('Liberation Mono','12','normal')) #"#4C4C4C")
+    mystyle.configure("unlocked.TLabel", foreground="gray55", background="black",font=('Liberation Mono','12','normal')) #"#4C4C4C")
+    mystyle.configure("heading.TLabel", foreground="gray55", background="black",font=('Liberation Mono','36','normal')) #"#4C4C4C")
+    mystyle.configure("app.TFrame", foreground="gray55", background="black",)
+    mystyle.configure("app.TButton", foreground="gray55", background="#D15101",activeforeground ="#F2681C")#F2681C
+    mystyle.configure("app.TCheckbutton", foreground="gray55", background="black") #"#4C4C4C")
+    mystyle.configure("TCombobox", background="#F2681C",selectbackground = "#D15101")
+    mystyle.configure("app.TEntry", foreground="black", background="gray40")
+    mystyle.configure("pass.TEntry", foreground="gray55", background="gray55",insertofftime=5000)
+    root.option_add("*TCombobox*Listbox*selectBackground", "#D15101")
     sendme = SendTop(root,root,payloadType="raw",payloadPath = "signed_monero_tx",)
     #sendme.sender.skip = [1,2,3,4,17,18,19]
 
