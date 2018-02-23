@@ -61,18 +61,19 @@ import webbrowser as web
 # 48Zuamrb7P5NiBHrSN4ua3JXRZyPt6XTzWLawzK9QKjTVfsc2bUr1UmYJ44sisanuCJzjBAccozckVuTLnHG24ce42Qyak6
 
 class Lunlumo(ttk.Frame):
-    def __init__(self,app, parent,walletFile = None, password = '',background ="misc/genericspace2.gif",daemonAddress = None, daemonHost = None,testnet = False,cold = True, *args, **kwargs):
+    def __init__(self,app, parent,walletFile = None, password = '',background ="misc/genericspace2.gif",daemonAddress = None, daemonHost = None,testnet = False,cold = True,cmd = "./monero-wallet-cli", *args, **kwargs):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
         self.busy = False
         self.cold = cold
-        self.wallet = wex.Wallet(walletFile, password,daemonAddress, daemonHost,testnet,self.cold,gui=self,postHydra = True,debug = 33)
+        self.wallet = wex.Wallet(walletFile, password,daemonAddress, daemonHost,testnet,self.cold,gui=self,postHydra = True,debug = 33,cmd = cmd)
         self.initAddress = re.findall(self.wallet.patterns["address"],self.wallet.boot)[0]
-        self.address_menu = None
-        self.account_menu = ["0 %s Primary Account (loading tag)" % self.initAddress[:6]]
+        self.address_book_menu = None
+        self.subaddress_book_menu = None
+        self.account_menu = ["0 %s Primary account (loading tag)" % self.initAddress[:6]]
         self.primary_account = self.account_menu[0]
-        self.earliestBalance = 3000
+        self.earliestBalance = 1000
         self.bg = tk.PhotoImage(file = "misc/genericspace2.gif")
         self.bg1 = tk.PhotoImage(file = "misc/genericspace.gif")
         self.bg3 = tk.PhotoImage(file = "misc/genericspace3.gif")
@@ -90,8 +91,9 @@ class Lunlumo(ttk.Frame):
 
             self.sidebar.grid(row=0,column = 0,sticky=tk.NW)
             self.statusbar.grid(row=2,column = 0, columnspan =3,sticky=tk.W+tk.E)
-            #self.receivepage.grid(row=0,column = 1 ,sticky=tk.W+tk.E,padx=(20,20),pady=(20,20))
+
             self.sendpage.grid(row=0,column = 1 ,sticky=tk.NW+tk.SE,padx=(20,20),pady=(20,20))
+            self.receivepage.grid(row=0,column = 1 ,sticky=tk.W+tk.E,padx=(20,20),pady=(20,20))
 
             #self._root().after(100,self.receivepage.grid_propagate,False)
 
@@ -100,13 +102,14 @@ class Lunlumo(ttk.Frame):
             MessageBox.showerror("Startup Error",str(e))
             raise
 
-        self._root().after(6000,self.receivepage.idle_refresh)
-        self._root().after(8000,self.statusbar.idle_refresh,False)
-        self._root().after(20000,self.sendpage.idle_refresh)
+
+        self._root().after(3000,self.receivepage.idle_refresh)
+        self._root().after(4000,self.statusbar.idle_refresh,False)
+        self._root().after(25000,self.sendpage.idle_refresh)
         if not self.cold:
             self._root().after(2500,self.sidebar.refresh_account,True,None)
         else:
-            self._root().after(12000,self.sidebar.refresh_account)
+            self._root().after(2500,self.sidebar.refresh_account)
 
     def confirm(self,msg):
         return MessageBox.askokcancel("Please Confirm!",msg)
@@ -161,7 +164,7 @@ class Sidebar(ttk.Frame):
 
         #self.go_send = tk.Button(self.extra,text = "send",command =self.get,image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
         self.go_send = tk.Button(self,text = "send",command = self.go_send_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "red",image = self.bgv,compound = tk.CENTER,cursor = "exchange")
-        self.go_receive = tk.Button(self,text = "receive",command = self.go_send_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "green",image = self.bg2,compound = tk.CENTER,cursor = "plus")
+        self.go_receive = tk.Button(self,text = "receive",command = self.go_receive_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "green",image = self.bg2,compound = tk.CENTER,cursor = "plus")
         self.go_extras = tk.Button(self,text = "extras",command = self.go_send_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "blue",image = self.bg3,compound = tk.CENTER,cursor = "trek")
         self.go_donate = tk.Button(self,text = "donate",command = self.go_send_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "orange",image = self.bgv,compound = tk.CENTER,cursor = "heart")
 
@@ -174,9 +177,11 @@ class Sidebar(ttk.Frame):
         self.go_receive.grid(row=4,column=0,sticky=tk.W+tk.E)
         self.go_extras.grid(row=5,column=0,sticky=tk.W+tk.E)
         self.go_donate.grid(row=6,column=0,sticky=tk.W+tk.E)
-        self._root().after(14000,self.go_donate.flash)
+
     def go_send_event(self):
-        pass
+        self.app.sendpage.lift()
+    def go_receive_event(self):
+        self.app.receivepage.lift()
 
     def account_chosen(self):
         try:
@@ -188,6 +193,8 @@ class Sidebar(ttk.Frame):
             self.app.showinfo(info.split("\r\n",1)[-1].replace("Currently selected account: ","Currently selected account:\n"))
         except Exception as e:
             MessageBox.showerror("Account Switch Error",str(e) + "\nUnknown account state. Proceed with caution.")
+        finally:
+            self.app.receivepage.refresh()
 
     def refresh_account(self,boot = False,current = None):
         if boot:
@@ -267,17 +274,38 @@ class Pane(ttk.Frame):
 
 
 class Destination(ttk.Frame):
-    def __init__(self,app, parent,background = "misc/genericspace3.gif",name = "", *args, **kwargs):
+    def __init__(self,app, parent,background = "misc/genericspace3.gif",cwidth = None,select_handle = "Address Book",mode = "send",name = "", *args, **kwargs):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
         self.name = name
-        if not self.app.address_menu:
-            self.app.address_book = self.app.wallet.address_book()
-            self.app.address_menu = [""]
-            for k,v in self.app.address_book.items():
-                self.app.address_menu.append(v["menu"])
-            self.app.address_menu.sort()
+        self.localmenu = None
+        self.mode = mode
+        if self.mode =="send":
+            if not self.app.address_book_menu:
+                self.app.address_book = self.app.wallet.address_book()
+                self.app.address_book_menu = [""]
+                for k,v in self.app.address_book.items():
+                    self.app.address_book_menu.append(v["menu"])
+                self.app.address_book_menu.sort()
+            self.localmenu = self.app.address_book_menu
+            self.start = ""
+            self.cmd = self.address_book_chosen
+        elif self.mode == "receive":
+            if not self.app.subaddress_book_menu:
+                self.app.subaddress_book = self.app.wallet.address(address_all = True)
+                self.app.subaddress_book_menu = []
+                largest = 0
+                for k,v in self.app.subaddress_book.items():
+                    largest = max(largest,int(k))
+                    #self.app.subaddress_book_menu.append(v["menu"])
+                for i in range(largest+1):
+                    self.app.subaddress_book_menu.append(self.app.subaddress_book[str(i)]["menu"])
+
+            self.localmenu = self.app.subaddress_book_menu
+            self.start = self.app.subaddress_book_menu[0]
+            #print("--------------------------STARTING SUB ADDRESS",self.start)
+            self.cmd = self.subaddress_book_chosen
         if background:
             self.bg = tk.PhotoImage(file = background)
             self.bglabel = tk.Label(self, image=self.bg)
@@ -285,19 +313,20 @@ class Destination(ttk.Frame):
         self.heading = ttk.Label(self,text = "Address",style = "app.TLabel")
         self.dest_address = tk.Text(self,bg = "white",height = 2,width = 48,insertbackground ="#D15101",selectbackground = "#D15101" )
         self.amount = MyWidget(self.app,self,handle = self.name + "Amount",choices = "entry",)
-        self.address_book_select = MyWidget(self.app, self,handle = "Address Book",choices=self.app.address_menu,startVal = "",cmd = self.address_book_chosen)
+        self.address_book_select = MyWidget(self.app, self,handle = select_handle,cwidth = cwidth,choices=self.localmenu,startVal = self.start,cmd = self.cmd)
 
         self.heading.grid(row=0,column=1,sticky = tk.W,pady= (0,0))
         self.dest_address.grid(row=1,column=1,sticky = tk.E,pady= (0,0))
         self.amount.grid(row=0,column=0,rowspan = 2,sticky = tk.NE,pady= (0,0),padx = (0,25))
-        self.address_book_select.grid(row=3,column=0,columnspan = 4,sticky = tk.E,pady= (0,0))
+        self.address_book_select.grid(row=3,column=0,columnspan = 4,sticky = tk.E,pady= (5,0))
 
         #for windows
         self.address_book_select.bind("<MouseWheel>", self.empty_scroll_command)
         # Linux and other *nix systems
         self.address_book_select.bind("<ButtonPress-4>", self.empty_scroll_command)
         self.address_book_select.bind("<ButtonPress-5>", self.empty_scroll_command)
-
+        if self.mode == "receive":
+            self._root().after(100,self.subaddress_book_chosen)
     def empty_scroll_command(self, event):
         return "break"
 
@@ -312,6 +341,16 @@ class Destination(ttk.Frame):
             self.dest_insert(new_address)
         else:
             self.dest_insert("")
+
+    def subaddress_book_chosen(self):
+        pick = self.address_book_select.get()[0]
+        if pick:
+            new_address = self.app.subaddress_book[pick.split(":")[0]]["address"]
+            self.dest_address.configure(state='normal')
+            self.dest_insert(new_address)
+            self.dest_address.configure(state='disabled')
+            self._root().after(10,self.app.receivepage.genQR)
+
 
     def get(self):
         dest = self.dest_address.get("1.0",tk.END).strip()
@@ -338,31 +377,59 @@ class Receive(ttk.Frame):
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
         self.heading = ttk.Label(self,text = "Receive",style = "heading.TLabel")
+
+        self.body = VSFrame(self,fheight = 430)
+        self.dest = Destination(self.app,self.body.interior,name = "",cwidth = 40,select_handle = "Subaddress Book",background = "misc/genericspace.gif",mode = "receive")
+
         self.addresses = []
 
-        self.textAddress = MyWidget(self.app,self,handle = "Address",choices = [self.app.initAddress],cwidth = 50,startVal =  self.app.initAddress )
+        #self.textAddress = MyWidget(self.app,self.body.interior,handle = "Address",choices = [self.app.initAddress],cwidth = 50,startVal =  self.app.initAddress )
         self.amountVar = tk.StringVar()
-        self.amount = MyWidget(self.app,self,handle = "Amount",choices = "entry",optional = True,activeStart=False)
-        self.amount.value.configure(textvariable = self.amountVar)
+        self.dest.amount.value.config(textvariable = self.amountVar)
+        self.new_label = MyWidget(self.app,self.body.interior,handle = "New Subaddr.",ewidth=23,choices = "entry",startVal = "<label goes here>")
+        self.moon3 = tk.PhotoImage(file = "misc/moonbutton3.gif")
+        self.new_button = tk.Button(self.body.interior,text = "New Sub.",command =self.new_subaddress,image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
+        #self.amount = MyWidget(self.app,self.body.interior,handle = "Amount",choices = "entry",optional = True,activeStart=False)
+        #self.amount.value.configure(textvariable = self.amountVar)
         self.amountVar.trace("w", lambda name, index, mode, sv=self.amountVar: self.amountCallback(sv))
-        self.amount.optState.trace("w", lambda name, index, mode, sv=self.amountVar: self.amountCallback(sv))
-        self.qr = ttk.Label(self,style = "app.TLabel")
+        #self.amount.optState.trace("w", lambda name, index, mode, sv=self.amountVar: self.amountCallback(sv))
+        self.qr = ttk.Label(self.body.interior,style = "app.TLabel")
         self.genQR()
 
-        self.heading.grid(row=0,column=0,sticky = tk.W,pady= (10,20))
-        self.textAddress.grid(row=1,column=0,columnspan = 2,sticky = tk.W)
-        self.amount.grid(row=2,column=0,sticky = tk.E,pady= (10,0))
-        self.qr.grid(row=0,column=2,sticky = tk.W,padx=(30,0),pady= (30,50),rowspan = 10)
+        self.heading.grid(row=0,column=0,sticky = tk.W,pady= (10,15))
+        self.body.grid(row=1,column=0,sticky = tk.W+ tk.E,pady= (5,20))
+        self.dest.grid(row=0,column=0,columnspan = 2,sticky = tk.W,padx = (15,15))
+        self.new_label.grid(row=1,column=0,sticky = tk.W,padx = (109,0),pady=(15,0))
+        self.new_button.grid(row=1,column=1,sticky = tk.W,padx = (0,10),pady=(25,0))
+        #self.textAddress.grid(row=1,column=0,columnspan = 2,sticky = tk.W)
+        #self.amount.grid(row=2,column=1,sticky = tk.E,pady= (10,0))
+        self.qr.grid(row=3,column=0,sticky = tk.W+tk.E,padx=(40,0),pady= (30,10),columnspan = 2)
 
-
+    def new_subaddress(self):
+        label = self.new_label.get()[0]
+        self.app.wallet.address_new(label = label)
+        self.refresh(index = -1)
     def idle_refresh(self,something = None):
         self._root().after_idle(self.refresh)
-    def refresh(self):
+    def refresh(self,index = 0):
         self.grid_propagate(False)
-        self.addresses = self.getAddresses()
-        self.textAddress.destroy()
-        self.textAddress = MyWidget(self.app,self,handle = "Address",choices = self.addresses,cwidth = 50,startVal =  self.addresses[0] )
-        self.textAddress.grid(row=1,column=0,columnspan = 2,sticky = tk.W)
+        ###
+        self.app.subaddress_book = self.app.wallet.address(address_all = True)
+        self.app.subaddress_book_menu = []
+        largest = 0
+        for k,v in self.app.subaddress_book.items():
+            largest = max(largest,int(k))
+            #self.app.subaddress_book_menu.append(v["menu"])
+        for i in range(largest+1):
+            self.app.subaddress_book_menu.append(self.app.subaddress_book[str(i)]["menu"])
+        ###
+        zero = self.app.subaddress_book_menu[index]
+        self.dest.address_book_select.value["values"] = list(self.app.subaddress_book_menu)
+        self.dest.address_book_select.value.set(zero)
+        self.dest.subaddress_book_chosen()
+        self.genQR()
+
+
 
     def getAddresses(self):
         addlist = self.app.wallet.address()
@@ -373,15 +440,15 @@ class Receive(ttk.Frame):
         self._root().after(200,self.genQR)
 
     def genQR(self):
-        msg = self.coin + ":" + self.textAddress.get()[0]
-        if self.amount.get()[0] and self.amount.optState.get():
+        msg = self.coin + ":" + self.dest.dest_address.get("1.0",tk.END).strip()
+        if self.dest.amount.get()[0]:
             try:
-                msg += "?tx_amount=" + str(float(self.amount.get()[0]))
+                msg += "?tx_amount=" + str(float(self.dest.amount.get()[0]))
             except ValueError as e:
-                self.amount.value.delete(0, tk.END)
+                self.dest.amount.value.delete(0, tk.END)
                 MessageBox.showerror("Amount Error",str(e))
         self.qrPage = pyqrcode.create(msg,error="L")
-        self.code = tk.BitmapImage(data=self.qrPage.xbm(scale=15))
+        self.code = tk.BitmapImage(data=self.qrPage.xbm(scale=8))
         self.code.config(background="gray60")
         self.qr.config(image = self.code)
 
@@ -662,8 +729,11 @@ class MyWidget(ttk.Frame):
         try:
             global mystyle
             if self.handle in ["Account"]:
-                print("got Account wideMenu")
+                #print("got Account wideMenu")
                 mystyle.configure("TCombobox",postoffset = (0,0,150,0))
+                self.value.config(style = "TCombobox")
+            elif self.handle in ["Subaddress Book"]:
+                mystyle.configure("TCombobox",postoffset = (0,0,100,0))
                 self.value.config(style = "TCombobox")
             else:
                 mystyle.configure("TCombobox",postoffset = (0,0,0,0))
@@ -1231,7 +1301,7 @@ if __name__ == "__main__":
     first = tk.Tk()
 
     first.configure(bg="#F2681C")
-    first.geometry("%dx%d%+d%+d" % (400, 530, 300, 150))  #(width, height, xoffset, yoffset)
+    first.geometry("%dx%d%+d%+d" % (400, 500, 300, 150))  #(width, height, xoffset, yoffset)
     bg = tk.PhotoImage(file = "misc/genericspace.gif")
     bglabel = tk.Label(first, image=bg)
     bglabel.bgimage = bg
@@ -1279,7 +1349,7 @@ if __name__ == "__main__":
         mystyle.configure("pass.TEntry", foreground="gray55", background="gray55",insertofftime=5000)
         root.option_add("*TCombobox*Listbox*selectBackground", "#D15101")
         try:
-            App = Lunlumo(root,root,**login.final)
+            App = Lunlumo(root,root,cmd = sys.argv[1],**login.final)
         except Exception as e:
             print(str(e))
             MessageBox.showerror("Wallet Error",str(e))

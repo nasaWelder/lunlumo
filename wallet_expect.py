@@ -50,7 +50,8 @@ WALLET_COLOR            = r"\x1b\[[0-9;]+m"
                            #\\x1b\[0m\\r\\x1b\[K
 
 class Wallet(object):
-    def __init__(self, walletFile = None, password = '',daemonAddress = None, daemonHost = None,testnet = False,cold = True,gui=False,postHydra = False,debug = True):
+    def __init__(self, walletFile = None, password = '',daemonAddress = None, daemonHost = None,testnet = False,cold = True,gui=False,postHydra = False,debug = True,cmd = "./monero-wallet-cli"):
+        self.cmdMonero = cmd
         self.busy = True
         self.gui = gui
         if debug is True:
@@ -81,6 +82,8 @@ class Wallet(object):
 
         if self.postHydra:
             self.patterns.update({"address" : re.compile(r"[489AB][a-zA-Z0-9]{94}")}) # TODO remove chars not found in addresses, testnet subaddresses?
+            self.patterns.update({"address_all_whole": re.compile(r"[0-9]+ +[489AB][a-zA-Z0-9]{94}  [\S ]+\)?")})
+            self.patterns.update({"address_all_parts": re.compile(r"(?P<index>[0-9]+) +(?P<address>[489AB][a-zA-Z0-9]{94})  (?P<label>[\S ]+\)?)")})
             self.patterns.update({"address_book" : re.compile(r"Index: [0-9]+\s+Address: [489AB][a-zA-Z0-9]{94}\s+Payment ID: <[0-9]+>\s+Description:[\S ]*[\r\n]*")})
             self.patterns.update({"address_book_parts" : re.compile(r"Index: (?P<index>[0-9]+)\s+Address: (?P<address>[489AB][a-zA-Z0-9]{94})\s+Payment ID: <(?P<payid>[0-9]+)>\s+Description:(?P<desc>[\S ]*)[\r\n]*")})
             self.patterns.update({"balance": re.compile(r"Balance: (?P<balance>[0-9\.]+), unlocked balance: (?P<unlocked>[0-9\.]+)")})
@@ -157,7 +160,7 @@ class Wallet(object):
             self.child.terminate(force=True)
 
     def startWallet(self):
-        self.cmdMonero = os.path.join(MONERO_DIR,"monero-wallet-cli")
+        #self.cmdMonero = os.path.join(MONERO_DIR,"monero-wallet-cli")
         if self.testnet: print("self.cmdMonero: ",self.cmdMonero)
         self.child = pexpect.spawn(self.cmdMonero + ' ' + ''.join(arg + ' ' for arg in self.walletArgs),encoding= ENCODING)
         i = self.child.expect([pexpect.EOF,pexpect.TIMEOUT, WALLET_SYNCED_PROMPT, WALLET_NODAEMON_PROMPT], timeout = self.TIMEOUT)
@@ -421,17 +424,56 @@ class Wallet(object):
         self.debug("account result",result,1)
         return result
 
-    def address(self,verbose = True):
+    def address(self,address_all = False,verbose = True):
         if self.postHydra:
-            info = self.walletCmdHack("address",verbose=verbose,timeout = 2)
+            cmd = "address"
+            if address_all:
+                cmd += " all"
+            info = self.walletCmdHack(cmd,verbose=verbose,timeout = 2)
         else:
             info = self.walletCmd("address",verbose=verbose)
-        #info = self.walletCmd("address",verbose=verbose)
         self.debug("address info",info,2)
-        result = re.findall(self.patterns["address"],info)
-        #info = info.replace("address","",1).replace("\r\n","")
-        self.debug("address result",result,1)
-        return result
+        if not address_all:
+            result = re.findall(self.patterns["address"],info)
+            self.debug("address result",result,1)
+            return result
+        else:
+            entries = re.findall(self.patterns["address_all_whole"],info)
+            book = {}
+            for e in entries:
+                parts = self.patterns["address_all_parts"].match(e)
+                entry = {"index":parts.group("index"),"address":parts.group("address"),}
+                if parts.group("label") == "":
+                    label = "<none>"
+                    entry.update({"label":label})
+                else:
+                    label = parts.group("label").strip()
+                    entry.update({"label":label})
+                entry.update({"menu": parts.group("index") + ":   " +  parts.group("address")[:15] + "...    "+ label[:50] })
+
+
+                book.update({parts.group("index"):entry})
+
+            self.debug("address_all result",book,1)
+            return book
+
+    def address_new(self,label = None,verbose = True):
+        if self.postHydra:
+            cmd = "address new"
+            if label:
+                cmd += " " + str(label)
+            info = self.walletCmdHack(cmd,verbose=verbose,timeout = 2)
+
+            self.debug("address new info",info,2)
+
+            result = re.findall(self.patterns["address"],info)
+            self.debug("address new result",result,1)
+            return result
+        else:
+            return None
+
+
+
 
     def address_book(self,verbose = True,add=None):
         #add should be a tuple (<address>,<description>|None)
