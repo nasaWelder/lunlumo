@@ -196,13 +196,12 @@ class Wallet(object):
     def export_outputs(self,outputsFileName = "outputs_from_viewonly",verbose = True):
         # TODO check filename string validity
         if self.postHydra:
-            info = self.walletCmdHack("export_outputs %s" % outputsFileName,verbose=verbose,timeout = 15,faster = r"Outputs exported to[^\\]+")
-            self.debug("export_outputs",info,2)
-            #info = re.findall(self.patterns["fee"],info)[-1]
+            info = self.walletCmdHack("export_outputs %s" % outputsFileName,verbose=verbose,timeout = 30,faster = r"Outputs exported to[^\\]+")
+
         else:
             info = self.walletCmd("export_outputs %s" % outputsFileName,verbose = True)
-            self.debug("export_outputs",info,2)
 
+        self.debug("export_outputs",info,1)
         if not ("Outputs exported to %s" % outputsFileName) in info:
             self.haltAndCatchFire('Wallet Error! unexpected result in export_outputs("%s"): %s' % (outputsFileName, info))
         else:
@@ -210,8 +209,14 @@ class Wallet(object):
 
     def import_outputs(self,outputsFileName = "outputs_from_viewonly",verbose = True):
         # TODO check filename string validity
-        info = self.walletCmd("import_outputs %s" % outputsFileName,verbose = True)
-        numOutputs = info.strip().split()[0]
+        if self.postHydra:
+            info = self.walletCmdHack("import_outputs %s" % outputsFileName,verbose=verbose,timeout = 30,faster = r"outputs imported[^\\]+")
+
+            #info = re.findall(self.patterns["fee"],info)[-1]
+        else:
+            info = self.walletCmd("import_outputs %s" % outputsFileName,verbose = True)
+        self.debug("import_outputs",info,1)
+        numOutputs = "TODO" # TODO info.strip().split()[0]
         if not "outputs imported" in info:
             self.haltAndCatchFire('Wallet Error! unexpected result in import_outputs("%s"): %s' % (outputsFileName, info))
         else:
@@ -267,10 +272,16 @@ class Wallet(object):
 
     def sign_transfer(self,autoConfirm = 0, verbose = True):
         # looks for unsigned_monero_tx in cwd
-        info = self.walletCmd("sign_transfer",verbose=verbose,autoConfirm = autoConfirm)
+        if self.postHydra:
+            info = self.walletCmdHack("sign_transfer",verbose=verbose,timeout = 45,faster = r"successfully[^\\]+")
+        else:
+            info = self.walletCmd("sign_transfer",verbose=verbose,autoConfirm = autoConfirm)
+        self.debug("sign_transfer result",info,1)
         # saves signed_monero_tx to cwd
-        if not "Transaction successfully signed to file signed_monero_tx" in info:
+        if not "Transaction successfully signed to file" in info:
             self.haltAndCatchFire('Wallet Error! unexpected result in sign_transfer: %s' % (info))
+        #elif self.gui:
+            #self.gui.showinfo(info)
         return info
 
     def submit_transfer(self,autoConfirm = 0, verbose = True):

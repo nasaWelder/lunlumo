@@ -101,12 +101,14 @@ class Lunlumo(ttk.Frame):
             self.sidebar = Sidebar(self,self)
             self.statusbar = Statusbar(self,self)
             self.receivepage = Receive(self,self,background = background )
-            self.sendpage = SendPane(self,self,background = background )
-
+            if not self.cold:
+                self.sendpage = SendPane(self,self,background = background )
+                self.sendpage.grid(row=0,column = 1 ,sticky=tk.NW+tk.SE,padx=(20,20),pady=(20,20))
+            else:
+                self.coldsignpage = Coldsign(self,self)
+                self.coldsignpage.grid(row=0,column = 1 ,sticky=tk.NW+tk.SE,padx=(20,20),pady=(20,20))
             self.sidebar.grid(row=0,column = 0,sticky=tk.NW)
             self.statusbar.grid(row=2,column = 0, columnspan =3,sticky=tk.W+tk.E)
-
-            self.sendpage.grid(row=0,column = 1 ,sticky=tk.NW+tk.SE,padx=(20,20),pady=(20,20))
             self.receivepage.grid(row=0,column = 1 ,sticky=tk.W+tk.E,padx=(20,20),pady=(20,20))
 
             #self._root().after(100,self.receivepage.grid_propagate,False)
@@ -119,10 +121,12 @@ class Lunlumo(ttk.Frame):
 
         self._root().after(3000,self.receivepage.idle_refresh)
         self._root().after(4000,self.statusbar.idle_refresh,False)
-        self._root().after(25000,self.sendpage.idle_refresh)
+
         if not self.cold:
             self._root().after(2500,self.sidebar.refresh_account,True,None)
+            self._root().after(25000,self.sendpage.idle_refresh)
         else:
+
             self._root().after(2500,self.sidebar.refresh_account)
         #self._root().after(10000,self.preview_request)
 
@@ -178,7 +182,7 @@ class Sidebar(ttk.Frame):
 
             self.bglabel = tk.Label(self, image=self.bg3)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
-        self.logo = tk.PhotoImage(file = "misc/2legitmoonsmaller.gif")
+        self.logo = tk.PhotoImage(file = "misc/reddit_user_philkode_made_this.gif")
         self.showLogo = ttk.Label(self,image= self.logo)
         self.balFrame =  tk.Frame(self,highlightcolor = "white",highlightbackground = "white",highlightthickness=3,background ="#4C4C4C")
         if background:
@@ -209,7 +213,10 @@ class Sidebar(ttk.Frame):
         self.unlocked.grid(row=4,column=0,sticky=tk.W,padx =(5,0),pady=(0,5))
 
         #self.go_send = tk.Button(self.extra,text = "send",command =self.get,image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
-        self.go_send = tk.Button(self,text = "send",command = self.go_send_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "red",image = self.bgv,compound = tk.CENTER,cursor = "exchange")
+        if not self.app.cold:
+            self.go_send = tk.Button(self,text = "send",command = self.go_send_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "red",image = self.bgv,compound = tk.CENTER,cursor = "exchange")
+        else:
+            self.go_coldsign = tk.Button(self,text = "cold sig",command = self.go_coldsign_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "skyblue1",image = self.bgv,compound = tk.CENTER,cursor = "exchange")
         self.go_receive = tk.Button(self,text = "receive",command = self.go_receive_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "green",image = self.bg2,compound = tk.CENTER,cursor = "plus")
         self.go_extras = tk.Button(self,text = "extras",command = self.go_send_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "blue",image = self.bg3,compound = tk.CENTER,cursor = "trek",state="disabled")
         self.go_donate = tk.Button(self,text = "donate",command = self.go_send_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "orange",image = self.bgv,compound = tk.CENTER,cursor = "heart")
@@ -219,13 +226,18 @@ class Sidebar(ttk.Frame):
         self.showLogo.grid(row=0,column=0,sticky=tk.W)
         self.account_picker.grid(row=0,column=0,padx =(5,0),pady=(5,5),sticky=tk.W+tk.E)
         self.balFrame.grid(row=2,column=0,sticky=tk.W+tk.E)
-        self.go_send.grid(row=3,column=0,sticky=tk.W+tk.E,pady=(4,0),padx=(4,4))
+        if not self.app.cold:
+            self.go_send.grid(row=3,column=0,sticky=tk.W+tk.E,pady=(4,0),padx=(4,4))
+        else:
+            self.go_coldsign.grid(row=3,column=0,sticky=tk.W+tk.E,pady=(4,0),padx=(4,4))
         self.go_receive.grid(row=4,column=0,sticky=tk.W+tk.E,pady=(4,0),padx=(4,4))
         self.go_extras.grid(row=5,column=0,sticky=tk.W+tk.E,pady=(4,0),padx=(4,4))
         self.go_donate.grid(row=6,column=0,sticky=tk.W+tk.E,pady=(4,0),padx=(4,4))
 
     def go_send_event(self):
         self.app.sendpage.lift()
+    def go_coldsign_event(self):
+        self.app.coldsignpage.lift()
     def go_receive_event(self):
         self.app.receivepage.lift()
 
@@ -412,6 +424,74 @@ class Destination(ttk.Frame):
             raise Exception(err)
         return None
 
+
+class Coldsign(ttk.Frame):
+    def __init__(self,app, parent,background = "misc/genericspace2.gif", *args, **kwargs):
+        ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
+        self.app = app
+        self.parent = parent
+        if background:
+            self.bg = tk.PhotoImage(file = background)
+            self.bglabel = tk.Label(self, image=self.bg)
+            self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
+        self.heading = ttk.Label(self,text = "Cold Sign",style = "heading.TLabel")
+        self.moon3 = tk.PhotoImage(file = "misc/moonbutton3.gif")
+        #self.body = VSFrame(self,fheight = 430) # not yet
+        self.cold_transfer_button = tk.Button(self,text = "Sign tx",command =self.do_cold_sign,image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
+
+        self.heading.grid(row=0,column=0,sticky = tk.W,pady= (10,15))
+        #self.body.grid(row=1,column=0,sticky = tk.W+ tk.E,pady= (5,20))
+        self.cold_transfer_button.grid(row=1,column=1,sticky = tk.E,padx = (50,10),pady=(25,0))
+
+    def do_cold_sign(self):
+        self.app.outputs_payload = Payload("exoutp",app=self.app,signal_app = True)
+        self.app.scanner.add_child(self.app.outputs_payload)
+        self.app.preview_request()
+        self._root().after(10,self.app.monitor_incoming,self.app.outputs_payload,self.recv_qr_outputs)
+
+    def recv_qr_outputs(self,payload):
+        if not self.app.cancel:
+            outputs_path = "imported_outputs.lunlumo"
+            if payload.toFile(outputs_path):
+                self.app.wallet.import_ouputs(outputs_path)
+                self._root().after(10,self.do_export_key_images)
+            else:
+                print(repr(payload.bin))
+                self.app.showerror("Stopped Automation","Failed crc.\nFailed to reconstruct QR stream: Outputs")
+
+        else:
+            self.app.showerror("Stopped Automation","Importing Outputs cancelled upstream.")
+
+    def do_export_key_images(self,):
+        if not self.app.cancel:
+            key_images_path = "exported_key_images.lunlumo"
+            self.app.wallet.export_key_images(key_images_path)
+            if not self.app.cancel:
+                self.app.sender = SendTop(self.app,self._root(),payloadType="keyimgs",payloadPath = key_images_path)
+                self.app.unsigned_tx_payload = Payload("unsgtx",app=self.app,signal_app = True)
+                self.app.scanner.add_child(self.app.unsigned_tx_payload)
+                self._root().after(10,self.app.monitor_incoming,self.app.unsigned_tx_payload,self.recv_qr_unsigned_tx)
+            else:
+                self.app.showerror("Stopped Automation","Exporting key images cancelled upstream.")
+        else:
+            self.app.showerror("Stopped Automation","Exporting key images cancelled upstream.")
+
+
+    def recv_qr_unsigned_tx(self,payload):
+        if not self.app.cancel:
+            if payload.toFile("unsigned_monero_tx"):
+                self.app.wallet.sign_transfer()
+                if not self.app.cancel:
+                    self.app.sender = SendTop(self.app,self._root(),payloadType="sigdtx",payloadPath = "unsigned_monero_tx")
+                    # TODO u/jollymort : should we re-sync outputs/keyimages here?
+                else:
+                    self.app.showerror("Stopped Automation","sign_transfer cancelled upstream.")
+            else:
+                print(repr(payload.bin))
+                self.app.showerror("Stopped Automation","Failed crc.\nFailed to reconstruct QR stream: unsigned_tx")
+
+        else:
+            self.app.showerror("Stopped Automation","sign_transfer cancelled upstream.")
 
 
 class Receive(ttk.Frame):
@@ -728,7 +808,7 @@ class Login(ttk.Frame):
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
 
-        self.logo = tk.PhotoImage(file = "misc/2legitmoonsmaller.gif")
+        self.logo = tk.PhotoImage(file = "misc/reddit_user_philkode_made_this.gif")
         self.showLogo = ttk.Label(self,image= self.logo,style = "app.TLabel",cursor = "shuttle")
         #heading = ttk.Label(first,text= "Wallet Options",style = "app.TLabel")
         self.walletFile = FilePicker(self.app,self,"wallet file",askPass = True,start = None,background = "misc/genericspace.gif",ftypes = [("full","*.keys"),("watchonly","*.keys-watchonly")],idir="./")
