@@ -39,6 +39,7 @@ else:
         def __init__(self,verbose=False):
             self.verbose = verbose
             self.camera = None
+            self.still = None
 
         def start(self,):
             if self.camera is None:
@@ -55,10 +56,13 @@ else:
             self.camera = None
 
         def snapshot(self,snapshot_size = (256,256)):
-            thumb = self.still.copy()
-            thumb.thumbnail(snapshot_size,Image.ANTIALIAS)
-            #time.sleep(.25)
-            return thumb
+            if self.still:
+                thumb = self.still.copy()
+                thumb.thumbnail(snapshot_size,Image.ANTIALIAS)
+                #time.sleep(.25)
+                return thumb
+            else:
+                return None
 
         def scan(self,verbose=False):
             #### picamera capture to PIL Image
@@ -94,17 +98,21 @@ except Exception as e:
     print(str(e))
 else:
     class Scanner_pygame(object):
-        def __init__(self,verbose=False,resolution = (640,480)):   #(640,480)
+        def __init__(self,app = None,verbose=False,delay_ms = 400,resolution = (640,480)):   #(640,480)
             self.resolution = resolution
+            self.app = app
+            self.delay_ms = delay_ms
             pygame.init()
             pygame.camera.init()
             time.sleep(1)
+            self.still = None
             self.verbose = verbose
             self.clist = pygame.camera.list_cameras()
             print("Cameras Found: %s" % self.clist)
             if not self.clist:
                 raise ValueError("Sorry, no cameras detected.")
             self.camera = None
+            self.children = []
 
         def start(self,):
             if self.camera is None:
@@ -119,32 +127,65 @@ else:
             self.camera = None
 
         def snapshot(self,snapshot_size = (256,256)):
-            thumb = self.still.copy()
-            thumb.thumbnail(snapshot_size,Image.ANTIALIAS)
-            #time.sleep(.25)
-            return thumb
+            if self.still:
+                #print("found still")
+                thumb = self.still.copy()
+                thumb.thumbnail(snapshot_size,Image.ANTIALIAS)
+                #time.sleep(.25)
+                return thumb
+            else:
+                return None
+
+
 
         def scan(self,verbose=False):
             snap = self.camera.get_image()
             pil_string_image = pygame.image.tostring(snap,"RGBA",False)
             self.still = Image.frombytes("RGBA",self.resolution,pil_string_image)
-            codes = zbarlight.scan_codes('qrcode', self.still)
-            if codes:
-                codes = [b(i) for i in codes]
+            self.codes = zbarlight.scan_codes('qrcode', self.still)
+            if self.codes:
+                self.codes = [b(i) for i in self.codes]
+                """
                 if self.verbose:
-                    for i in codes:
+                    for i in self.codes:
                         print('QR code: %s\n\n' % i)
-                return codes
+                """
+                return self.codes
+            else:
+                self.codes=[]
+                #print("\n======\n\nNo QR Found\n\n======")
+                return None
 
-            print("\n======\n\nNo QR Found\n\n======")
-            return None
+        def refresh(self,verbose=False):
+            snap = self.camera.get_image()
+            pil_string_image = pygame.image.tostring(snap,"RGBA",False)
+            self.still = Image.frombytes("RGBA",self.resolution,pil_string_image)
+
+        def add_child(self,child):
+            #print("adding child")
+            self.start()
+            self.children.append(child)
+            self.feed_children()
+
+        def feed_children(self):
+            if self.children:
+                #print("scan()")
+                self.scan()
+                for child in self.children:
+                    child.digest(self.codes)
+                self.app._root().after(self.delay_ms,self.feed_children)
+            else:
+                self.stop()
+
 
 
 
 class Payload(object):
-    def __init__(self,msgType,verbose=False):
+    def __init__(self,msgType,scanner = None,app = None,signal_app = False,verbose=False):
         self.verbose = verbose
         self.msgType = msgType
+        self.app = app
+        self.signal_app = signal_app
         self.pattern = re.compile(self.msgType + r",(?P<crc>[a-z0-9]{8}),(?P<rank>[0-9]{1,3})/(?P<total>[0-9]{1,3}):(?P<payload>\S+)")
         self.bin = []
 
@@ -153,17 +194,26 @@ class Payload(object):
         self.bin[index] = match.group("payload")
         #if self.verbose: print("found:",index)
 
+
+    def grab(self,still):
+        codes = zbarlight.scan_codes('qrcode', still)
+        if codes:
+            codes = [b(i) for i in codes]
+            self.digest(codes)
+
     def digest(self,codes):
         if not self.bin:
             for code in codes:
                 match = self.pattern.fullmatch(code)
                 if match:
+                    if self.app and self.signal_app:
+                        self.app.payload_started()
                     self.bin = [0 for i in range(int(match.group("total")))]
                     self.crc = match.group("crc")
-                    #self._use(match)
+                    self._use(match)
                     self.pattern = re.compile(self.msgType + "," + self.crc + r",(?P<rank>[0-9]{1,3})/%s:(?P<payload>\S+)"% match.group("total"))
                     break
-            self.digest(codes)
+
         else:
             for code in codes:
                 match = self.pattern.fullmatch(code)
@@ -171,7 +221,7 @@ class Payload(object):
                     self._use(match)
 
     def stitched(self):
-        if self.status():
+        if self.got_all():
             return "".join(i for i in self.bin).strip()
         else:
             raise Exception("Payload Error: Payload was not ready to be stitched\n%r" % self.bin)
@@ -193,7 +243,7 @@ class Payload(object):
         actual_crc = "%x"%(prev & 0xFFFFFFFF)
         return bool(self.crc == actual_crc)
 
-    def status(self):
+    def got_all(self):
         if self.bin:
             if not 0 in self.bin:
                 return True
@@ -206,8 +256,10 @@ class Payload(object):
 if __name__ == "__main__":
     from PIL import ImageTk
     def get_preview():
-        preview.img = ImageTk.PhotoImage(cam.snapshot())
-        preview.config(image = preview.img)
+        thumb = cam.snapshot()
+        if thumb:
+            preview.img = ImageTk.PhotoImage(thumb)
+            preview.config(image = preview.img)
         root.after(450,get_preview)
 
     def get_scan():

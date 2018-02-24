@@ -42,6 +42,7 @@ WALLET_SYNCED_PROMPT    = r"\[wallet [0-9A-Za-z]{6}\]:"                 # [walle
 WALLET_NODAEMON_PROMPT  = r"\[wallet [0-9A-Za-z]{6} \(no daemon\)\]:"     # [wallet 9wXvk8 (no daemon)]:
 WALLET_PASSWORD_PROMPT  = r"Wallet password:"
 WALLET_ISOKAY_PROMPT    = r"Is this okay\?\s+\(Y/Yes/N/No\):"            # "Is this okay?  (Y/Yes/N/No):"   #submit_transfer has  "Is this okay? (Y/Yes/N/No):"
+WALLET_ISOKAY_PROMPT    = r"\(Y/Yes/N/No\):"            # "Is this okay?  (Y/Yes/N/No):"   #submit_transfer has  "Is this okay? (Y/Yes/N/No):"
 WALLET_IMPOSTER_PROMPT  = r"\[wallet [0-9A-Za-z]{6}( \((no daemon|out of sync)\))?\]: \x1b\[0m\r\x1b\[K"
 WALLET_FLUFF_PROMPT     = r"(\[wallet [0-9A-Za-z]{6}( \((no daemon|out of sync)\))?\]:)? ?(\r)?\x1b\[(K|[0-9;]+m)"
 WALLET_ALL_PROMPT       = r"\[wallet [0-9A-Za-z]{6}( \((no daemon|out of sync)\))?\]:"
@@ -125,8 +126,7 @@ class Wallet(object):
             self.cold = False
             if self.daemonArg:
                 self.walletArgs.extend(self.daemonArg)
-        if self.testnet:
-            print("".join(arg + ' ' for arg in self.walletArgs))
+
 
         self.startWallet()
 
@@ -195,7 +195,14 @@ class Wallet(object):
 
     def export_outputs(self,outputsFileName = "outputs_from_viewonly",verbose = True):
         # TODO check filename string validity
-        info = self.walletCmd("export_outputs %s" % outputsFileName,verbose = True)
+        if self.postHydra:
+            info = self.walletCmdHack("export_outputs %s" % outputsFileName,verbose=verbose,timeout = 15,faster = r"Outputs exported to[^\\]+")
+            self.debug("export_outputs",info,2)
+            #info = re.findall(self.patterns["fee"],info)[-1]
+        else:
+            info = self.walletCmd("export_outputs %s" % outputsFileName,verbose = True)
+            self.debug("export_outputs",info,2)
+
         if not ("Outputs exported to %s" % outputsFileName) in info:
             self.haltAndCatchFire('Wallet Error! unexpected result in export_outputs("%s"): %s' % (outputsFileName, info))
         else:
@@ -211,8 +218,13 @@ class Wallet(object):
             return numOutputs,info
 
     def export_key_images(self,keyImagesFileName = "key_images_from_cold_wallet",verbose = True):
+        if self.postHydra:
+            info = self.walletCmdHack("export_key_images %s" % keyImagesFileName,verbose=verbose,timeout = 15,faster = r"Signed key images exported to[^\\]+")
+        else:
+            info = self.walletCmd("export_key_images %s" % keyImagesFileName,verbose = True)
+        self.debug("export_key_images info ",info,1)
         # TODO check filename string validity
-        info = self.walletCmd("export_key_images %s" % keyImagesFileName,verbose = True)
+
         if not ("Signed key images exported to %s" % keyImagesFileName) in info:
             self.haltAndCatchFire('Wallet Error! unexpected result in export_key_images("%s"): %s' % (keyImagesFileName, info))
         else:
@@ -220,14 +232,19 @@ class Wallet(object):
 
     def import_key_images(self,keyImagesFileName = "key_images_from_cold_wallet",verbose = True):
         # TODO check filename string validity
-        info = self.walletCmd("import_key_images %s" % keyImagesFileName,verbose = True)
+        if self.postHydra:
+            info = self.walletCmdHack("import_key_images %s" % keyImagesFileName,verbose=verbose,timeout = 15,faster = r"Signed key images imported to height[^\\]+")
+        else:
+            info = self.walletCmd("import_key_images %s" % keyImagesFileName,verbose = True)
+        self.debug("export_key_images info",info,1)
         # Signed key images imported to height 1091104, 25.482444280000 spent, 11.000000000000 unspent
+        # TODO need a regex for line above
         if not "Signed key images imported to height" in info:
             self.haltAndCatchFire('Wallet Error! unexpected result in import_key_images("%s"): %s' % (keyImagesFileName, info))
         else:
-            height = info.strip().split(",")[0].split()[-1]
-            spent  = info.strip().split(",")[1].split()[0].strip()
-            unspent  = info.strip().split(",")[2].split()[0].strip()
+            height = "TODO" #info.strip().split(",")[0].split()[-1] TODO
+            spent  = "TODO" #info.strip().split(",")[1].split()[0].strip() TODO
+            unspent  = "TODO" #info.strip().split(",")[2].split()[0].strip() TODO
             return height,spent,unspent,info
 
     def transfer(self,tx_string,autoConfirm = 0, verbose = True ):
@@ -260,9 +277,18 @@ class Wallet(object):
         # looks for signed_monero_tx in cwd
         if self.cold:
             self.haltAndCatchFire('Wallet Error! Cold wallet cannot submit_transfer!')
-        info = self.walletCmd("submit_transfer",verbose=verbose,autoConfirm = autoConfirm)
+
+        self.busy = True
+        if self.postHydra:
+            info = self.walletCmdHack("submit_transfer",verbose=verbose,timeout = 120,faster = r"(successfully[^\\]+|Error[^\\]+)")
+        else:
+            info = self.walletCmd("submit_transfer",verbose=verbose,autoConfirm = autoConfirm)
+        self.busy = False
+
         if not "Money successfully sent" in info:
             self.haltAndCatchFire('Wallet Error! unexpected result in sign_transfer: %s' % (info))
+        if self.gui:
+            self.gui.showinfo(info)
         return info
 
     def status(self,verbose = True,refresh = False):
@@ -293,7 +319,7 @@ class Wallet(object):
         # ['fee', 'Current fee is 0.000311280000 monero per kB', 'No backlog at priority 1', 'No backlog at priority 2', 'No backlog at priority 3', 'No backlog at priority 4']
         info = info.split("\r\n")
         try:
-            result = (info[1],info[2],info[3],info[4],info[5],)
+            result = (info[1],info[2],info[3],info[4],info[5],)   #TODO need a regex to make sure this doesn't pick up some garbage
         except IndexError:
             result = None
         if not result:

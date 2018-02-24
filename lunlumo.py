@@ -35,6 +35,7 @@ else:
 
 ## lunlumo libraries
 import wallet_expect as wex
+from scanner import Payload
 
 ## external libraries
 import pyqrcode
@@ -61,13 +62,26 @@ import webbrowser as web
 # 48Zuamrb7P5NiBHrSN4ua3JXRZyPt6XTzWLawzK9QKjTVfsc2bUr1UmYJ44sisanuCJzjBAccozckVuTLnHG24ce42Qyak6
 
 class Lunlumo(ttk.Frame):
-    def __init__(self,app, parent,walletFile = None, password = '',background ="misc/genericspace2.gif",daemonAddress = None, daemonHost = None,testnet = False,cold = True,cmd = "./monero-wallet-cli", *args, **kwargs):
+    def __init__(self,app, parent,walletFile = None, password = '',background ="misc/genericspace2.gif",daemonAddress = None, daemonHost = None,testnet = False,cold = True,cmd = "./monero-wallet-cli",camera_choice = None, *args, **kwargs):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
         self.busy = False
+        self.cancel = False
         self.cold = cold
         self.wallet = wex.Wallet(walletFile, password,daemonAddress, daemonHost,testnet,self.cold,gui=self,postHydra = True,debug = 33,cmd = cmd)
+
+        if camera_choice == "webcam (v4l)":
+            from scanner import Scanner_pygame
+            self.scanner = Scanner_pygame(app = self)
+        elif camera_choice == "raspi cam":
+            from scanner import Scanner_picamera
+            self.scanner = Scanner_picamera(app = self)
+        else:
+            self.scanner = None
+        self.preview = None
+
+
         self.initAddress = re.findall(self.wallet.patterns["address"],self.wallet.boot)[0]
         self.address_book_menu = None
         self.subaddress_book_menu = None
@@ -110,13 +124,45 @@ class Lunlumo(ttk.Frame):
             self._root().after(2500,self.sidebar.refresh_account,True,None)
         else:
             self._root().after(2500,self.sidebar.refresh_account)
+        #self._root().after(10000,self.preview_request)
+
 
     def confirm(self,msg):
         return MessageBox.askokcancel("Please Confirm!",msg)
     def wallet_alarm(self,err):
         MessageBox.showerror("Wallet Error",err)
+        self.cancel = True
     def showinfo(self,msg):
         MessageBox.showinfo("fyi", msg)
+
+    def showerror(self,title,err):
+        MessageBox.showerror(title,err)
+
+    def preview_request(self):
+        if not self.scanner is None:
+            if not self.preview:
+                self.preview = Preview(self,self)
+                self.scanner.add_child(self.preview)
+        else:
+            self.showerror("Camera Missing","Unable to display feed, as camera not initialized. This should should have been prevented by upstream logic.")
+
+    def preview_cancel(self):
+        if self.preview:
+            self.scanner.children.remove(self.preview)
+            self.preview.close()
+            self.preview = None
+
+
+    def monitor_incoming(self,payload,when_finished,*args,**kwargs):
+        if not payload.got_all():
+            self._root().after(self.scanner.delay_ms,self.monitor_incoming,payload,when_finished,*args,**kwargs)
+        else:
+            self.scanner.children.remove(payload)
+            self._root().after(50,when_finished,payload,*args,**kwargs)
+
+    def payload_started(self):
+        self.sender.destroy()
+        self.sender = None
 
 class Sidebar(ttk.Frame):
     def __init__(self,app, parent, delay = 40000,background = "misc/genericspace3.gif", *args, **kwargs):
@@ -165,7 +211,7 @@ class Sidebar(ttk.Frame):
         #self.go_send = tk.Button(self.extra,text = "send",command =self.get,image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
         self.go_send = tk.Button(self,text = "send",command = self.go_send_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "red",image = self.bgv,compound = tk.CENTER,cursor = "exchange")
         self.go_receive = tk.Button(self,text = "receive",command = self.go_receive_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "green",image = self.bg2,compound = tk.CENTER,cursor = "plus")
-        self.go_extras = tk.Button(self,text = "extras",command = self.go_send_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "blue",image = self.bg3,compound = tk.CENTER,cursor = "trek")
+        self.go_extras = tk.Button(self,text = "extras",command = self.go_send_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "blue",image = self.bg3,compound = tk.CENTER,cursor = "trek",state="disabled")
         self.go_donate = tk.Button(self,text = "donate",command = self.go_send_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "orange",image = self.bgv,compound = tk.CENTER,cursor = "heart")
 
 
@@ -173,10 +219,10 @@ class Sidebar(ttk.Frame):
         self.showLogo.grid(row=0,column=0,sticky=tk.W)
         self.account_picker.grid(row=0,column=0,padx =(5,0),pady=(5,5),sticky=tk.W+tk.E)
         self.balFrame.grid(row=2,column=0,sticky=tk.W+tk.E)
-        self.go_send.grid(row=3,column=0,sticky=tk.W+tk.E)
-        self.go_receive.grid(row=4,column=0,sticky=tk.W+tk.E)
-        self.go_extras.grid(row=5,column=0,sticky=tk.W+tk.E)
-        self.go_donate.grid(row=6,column=0,sticky=tk.W+tk.E)
+        self.go_send.grid(row=3,column=0,sticky=tk.W+tk.E,pady=(4,0),padx=(4,4))
+        self.go_receive.grid(row=4,column=0,sticky=tk.W+tk.E,pady=(4,0),padx=(4,4))
+        self.go_extras.grid(row=5,column=0,sticky=tk.W+tk.E,pady=(4,0),padx=(4,4))
+        self.go_donate.grid(row=6,column=0,sticky=tk.W+tk.E,pady=(4,0),padx=(4,4))
 
     def go_send_event(self):
         self.app.sendpage.lift()
@@ -190,7 +236,9 @@ class Sidebar(ttk.Frame):
             info,bals = self.app.wallet.account_switch(index = index)
             self.balance.configure(text = bals[0])
             self.unlocked.configure(text = bals[1])
-            self.app.showinfo(info.split("\r\n",1)[-1].replace("Currently selected account: ","Currently selected account:\n"))
+            info =  "Currently selected account:\n" + info.split("Currently selected account: ")[-1]
+            info = info.replace("Balance: ","Balance:\n").replace(" unlocked balance: ","\nUnlocked:\n")
+            self.app.showinfo(info)
         except Exception as e:
             MessageBox.showerror("Account Switch Error",str(e) + "\nUnknown account state. Proceed with caution.")
         finally:
@@ -386,7 +434,7 @@ class Receive(ttk.Frame):
         #self.textAddress = MyWidget(self.app,self.body.interior,handle = "Address",choices = [self.app.initAddress],cwidth = 50,startVal =  self.app.initAddress )
         self.amountVar = tk.StringVar()
         self.dest.amount.value.config(textvariable = self.amountVar)
-        self.new_label = MyWidget(self.app,self.body.interior,handle = "New Subaddr.",ewidth=23,choices = "entry",startVal = "<label goes here>")
+        self.new_label = MyWidget(self.app,self.body.interior,handle = "New Subaddress",ewidth=23,choices = "entry",startVal = "<label goes here>")
         self.moon3 = tk.PhotoImage(file = "misc/moonbutton3.gif")
         self.new_button = tk.Button(self.body.interior,text = "New Sub.",command =self.new_subaddress,image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
         #self.amount = MyWidget(self.app,self.body.interior,handle = "Amount",choices = "entry",optional = True,activeStart=False)
@@ -520,6 +568,8 @@ class SendPane(ttk.Frame):
 
 
     def get(self):
+        self.app.cancel = False
+        self.app.current_transfer_cmd = ""
         # transfer [index=<N1>[,<N2>,...]] [<priority>] [<ring_size>] <address> <amount> [<payment_id>]
         tx_string = "transfer %s %s" % (self.priority.get()[0],self.privacy.get()[0])
         dest_substring = ""
@@ -542,7 +592,56 @@ class SendPane(ttk.Frame):
                 return
             tx_string += " " + pay_id
         print("Transfer cmd:\n",repr(tx_string))
-        self.app.wallet.transfer(tx_string)
+        if not "Opened watch-only wallet:" in self.app.wallet.boot:
+            self.app.wallet.transfer(tx_string)
+        else:
+            self.app.current_transfer_cmd = tx_string
+            outputs_file = "exported_outputs.lunlumo"
+            self.app.wallet.export_outputs(outputsFileName = outputs_file)
+            self.app.sender = SendTop(self.app,self._root(),payloadType="exoutp",payloadPath = outputs_file,)
+            self.app.key_images_payload = Payload("keyimgs",app=self.app,signal_app = True)
+            self.app.scanner.add_child(self.app.key_images_payload)
+            self.app.preview_request()
+            self._root().after(10,self.app.monitor_incoming,self.app.key_images_payload,self.recv_qr_key_images)
+
+    def recv_qr_key_images(self,payload):
+        if not self.app.cancel:
+            key_images_path = "imported_key_images.lunlumo"
+            if payload.toFile(key_images_path):
+                self.app.wallet.import_key_images(key_images_path)
+                self._root().after(10,self.make_unsigned_tx)
+            else:
+                self.app.showerror("Stopped Automation","Failed crc.\nFailed to reconstruct QR stream: Key Images")
+
+        else:
+            self.app.showerror("Stopped Automation","Importing key images cancelled upstream.")
+
+
+    def make_unsigned_tx(self,):
+        if not self.app.cancel:
+            self.app.wallet.transfer(self.app.current_transfer_cmd)
+            self.app.current_transfer_cmd = ""
+            self.app.sender = SendTop(self.app,self._root(),payloadType="unsgtx",payloadPath = "unsigned_monero_tx",)  # TODO
+            self.app.signed_tx_payload = Payload("sigdtx",app=self.app,signal_app = True)
+            self.app.scanner.add_child(self.app.signed_tx_payload)
+            self._root().after(10,self.app.monitor_incoming,self.app.signed_tx_payload,self.recv_qr_signed_tx)
+        else:
+            self.app.showerror("Stopped Automation","Making unsigned_tx cancelled upstream.")
+
+    def recv_qr_signed_tx(self,payload):
+        if not self.app.cancel:
+            signed_tx_path = "signed_monero_tx"
+            if payload.toFile(signed_tx_path):
+                self.app.wallet.submit_transfer()
+                #self._root().after(10,self.make_unsigned_tx)
+
+            else:
+                self.app.showerror("Stopped Automation","Failed crc.\nFailed to reconstruct QR stream: signed_tx")
+
+        else:
+            self.app.showerror("Stopped Automation","Submitting transfer cancelled upstream.")
+        self.app.preview_cancel()
+
 
     def idle_refresh(self,something = None):
         self._root().after_idle(self.refresh)
@@ -639,16 +738,21 @@ class Login(ttk.Frame):
         self.daemon = MyWidget(self.app,self,handle = "daemon",startVal = "None (cold wallet)",allowEntry = False,cwidth = 18,cipadx = 1,
                                 choices = ["None (cold wallet)","local, already running","other, host[:port]",],
                                subs={"other, host[:port]":{"handle":"host[:port]","choices":"entry","ewidth":20,"allowEntry":False},}) # allow Entry not applicable
+        self.camera_choice = MyWidget(self.app,self,handle = "camera",startVal = "None",allowEntry = False,cwidth = 18,cipadx = 1,
+                                choices = ["None","webcam (v4l)","raspi cam",])
 
         self.showLogo.grid(row=0,column=0,rowspan=1,columnspan=2,sticky = tk.E)
         #self.heading.grid(row=0,column=1,sticky=tk.W)
         self.walletFile.grid(row=1,column=0,pady=(5,0),columnspan=2,sticky = tk.W+tk.E)
-        self.testnet.grid(row=3,column=0,padx=(5,0),pady=10)
-        self.launch.grid(row=3,column=1,padx=(5,0),pady= 5)
-        self.daemon.grid(row=2,column=0,pady=(10,15),rowspan=1,columnspan=2)
+        self.daemon.grid(row=2,column=0,pady=(10,0),rowspan=1,columnspan=2)
+        self.camera_choice.grid(row=3,column=0,pady=(10,15),rowspan=1,columnspan=2)
+        self.testnet.grid(row=4,column=0,padx=(5,0),pady=10)
+        self.launch.grid(row=4,column=1,padx=(5,0),pady= 5)
+
     def launch(self):
         wallet = self.walletFile.get()
-        vals = {"walletFile": wallet[0],"password": wallet[1],"testnet":bool(self.testnet.get()),}
+        vals = {"walletFile": wallet[0],"password": wallet[1],"camera_choice":self.camera_choice.get()[0],"testnet":bool(self.testnet.get()),}
+        print("login",repr(vals))
         daemon = self.daemon.get()
         if daemon[0] == "None (cold wallet)":
             vals.update({"cold":True})
@@ -798,6 +902,74 @@ class MyWidget(ttk.Frame):
                     self.value.config(state="enabled")
         if self.sub:
             self.sub._grey()
+
+
+################
+class Preview(tk.Toplevel):
+    def __init__(self,app,parent,delay = 450,title="Scanner",*args,**kargs):
+        tk.Toplevel.__init__(self,background = "black")
+        self.app = app
+        self.parent = parent
+        self._title = title
+        self.title(self._title)
+        self.delay = delay
+
+        self.preview_screen = tk.Label(self)
+        self.preview_screen.pack()
+        self.status_display = tk.Label(self,text = "waiting for codes")
+        self.status_display.pack()
+        self.protocol("WM_DELETE_WINDOW", self.kill)
+
+        w, h = self._root().winfo_screenwidth(), self._root().winfo_screenheight()
+        self.geometry("256x%d+%d+%d" % (int(256*480/640+20),int(0),int(h-256*480/640+20)))
+        #self.lift()
+        self.showme()
+        self._root().after(self.delay,self.get_preview)
+
+    def get_preview(self):
+        thumb = self.app.scanner.snapshot()
+        if thumb:
+            print("making thumb label")
+            self.img = ImageTk.PhotoImage(thumb)
+            self.preview_screen.config(image = self.img)
+        self._root().after(self.delay,self.get_preview)
+        self.attributes('-topmost', 1)
+
+    def digest(self,codes):
+        if codes:
+            self.status_display.config(text = "found:  " + codes[0].split(":")[0])
+        else:
+            self.status_display.config(text = "<nothing found>")
+
+
+    def showme(self):
+        #self.grab_set()
+        #self.focus()
+        #w, h = self._root().winfo_screenwidth(), self._root().winfo_screenheight()
+        #print("w:",w,",h:",h)
+        #self.geometry("%dx%d+0+0" % (w, h))
+        self.lift()
+        self.attributes('-topmost', 1)
+
+        #self._root().after(200,self.attributes,'-topmost', 0)
+        #self._root().after(210,self._root().attributes,'-topmost', 1)
+        #self._root().after(220,self._root().attributes,'-topmost', 0)
+
+        #self._root().after(100,self.geometry,"%dx%d+0+0" % (int(w*.9), h))
+        #self.lift()
+
+
+        #self.attributes('-fullscreen', True)
+    def kill(self):
+        print("Preview '%s' closed by WM_DELETE_WINDOW" % self._title)
+        self.app.preview_cancel()
+    def close(self):
+        print("Preview '%s' closed" % self._title)
+        self.destroy()
+
+
+
+
 
 
 class SendTop(tk.Toplevel):
@@ -967,6 +1139,7 @@ class SendFrame(tk.Frame):
         self._root().after(self.delay, self.idle_refresh,)
 
 """
+# here be dragons
 class MyConfirm(SimpleDialog):
 
     def body(self, master):
@@ -1301,7 +1474,7 @@ if __name__ == "__main__":
     first = tk.Tk()
 
     first.configure(bg="#F2681C")
-    first.geometry("%dx%d%+d%+d" % (400, 500, 300, 150))  #(width, height, xoffset, yoffset)
+    first.geometry("%dx%d%+d%+d" % (400, 530, 300, 150))  #(width, height, xoffset, yoffset)
     bg = tk.PhotoImage(file = "misc/genericspace.gif")
     bglabel = tk.Label(first, image=bg)
     bglabel.bgimage = bg
@@ -1356,44 +1529,17 @@ if __name__ == "__main__":
             raise
         else:
             App.pack()#grid(row=0,column=0)
-            """
-            sendme = SendFrame(root,root,"raw","signed_monero_tx",)
-            sendme.skip = [1,2,3,4,7,15,16,17,18,19]
 
-            sendme.grid(row=0,column=1,)
-            sendme.grid_propagate(False)
-
-            root.after(0,sendme.refresh,0)
-            root.after(10000,sendme.destroy)
-            """
         root.mainloop()
 
         App.wallet.stopWallet()
-    sys.exit(0)
 
-    root = tk.Tk()
-    mystyle = ttk.Style()
-    mystyle.theme_use('clam') #('clam', 'alt', 'default', 'classic')
-    mystyle.configure("app.TLabel", foreground="gray55", background="black",font=('Liberation Mono','12','normal')) #"#4C4C4C")
-    mystyle.configure("unlocked.TLabel", foreground="gray55", background="black",font=('Liberation Mono','12','normal')) #"#4C4C4C")
-    mystyle.configure("heading.TLabel", foreground="gray55", background="black",font=('Liberation Mono','36','normal')) #"#4C4C4C")
-    mystyle.configure("app.TFrame", foreground="gray55", background="black",)
-    mystyle.configure("app.TButton", foreground="gray55", background="#D15101",activeforeground ="#F2681C")#F2681C
-    mystyle.configure("app.TCheckbutton", foreground="gray55", background="black") #"#4C4C4C")
-    mystyle.configure("TCombobox", background="#F2681C",selectbackground = "#D15101")
-    mystyle.configure("app.TEntry", foreground="black", background="gray40")
-    mystyle.configure("pass.TEntry", foreground="gray55", background="gray55",insertofftime=5000)
-    root.option_add("*TCombobox*Listbox*selectBackground", "#D15101")
-    sendme = SendTop(root,root,payloadType="raw",payloadPath = "signed_monero_tx",)
-    #sendme.sender.skip = [1,2,3,4,17,18,19]
-
-    #sendme.grid(row=0,column=0,)
-    #sendme.grid_propagate(False)
-
-    root.mainloop()
 
     ########################################################
+
     sys.exit(0)
+
+    # this was the old way \/
     args = parser.parse_args()
     for arg in vars(args):
         print("\t%s\t\t%s"% (arg, getattr(args, arg)))
