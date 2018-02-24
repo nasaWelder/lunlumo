@@ -26,6 +26,7 @@ lunlumo wraps the monero-wallet-cli. You must download the offical binaries from
 Note: The goal is to eventually provide all dependencies via this github account for simpler trust verification.
 
 The following assumes Ubuntu Mate:
+
 * sudo -H pip3 install Pillow --upgrade # >= 3.4
 * sudo apt-get install libzbar0 libzbar-dev
 * sudo -H pip3 install setuptools --upgrade
