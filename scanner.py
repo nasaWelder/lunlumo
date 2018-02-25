@@ -36,10 +36,15 @@ except Exception as e:
     print(str(e))
 else:
     class Scanner_picamera(object):
-        def __init__(self,verbose=False):
+        def __init__(self,app = None,verbose=False,delay_ms = 400):
             self.verbose = verbose
+            self.delay_ms = delay_ms
+            self.app = app
             self.camera = None
             self.still = None
+            self.children = []
+            self.codes=[]
+            self.feeding = False
 
         def start(self,):
             if self.camera is None:
@@ -80,14 +85,44 @@ else:
             # "Rewind" the stream to the beginning so we can read its content
             stream.seek(0)
             self.still = Image.open(stream)
+            self.codes = zbarlight.scan_codes('qrcode', self.still)
+            if self.codes:
+                self.codes = [b(i) for i in self.codes]
+                """
+                if self.verbose:
+                    for i in self.codes:
+                        print('QR code: %s\n\n' % i)
+                """
+                return self.codes
+            else:
+                self.codes=[]
+                #print("\n======\n\nNo QR Found\n\n======")
+                return None
+        def refresh(self,verbose=False): #depracated, already?
+            self.scan()
+            return
+            snap = self.camera.get_image()
+            pil_string_image = pygame.image.tostring(snap,"RGBA",False)
+            self.still = Image.frombytes("RGBA",self.resolution,pil_string_image)
 
-            codes = zbarlight.scan_codes('qrcode', self.still)
-            codes = [b(i) for i in codes]
-            if verbose:
-                for i in codes:
-                    print('QR code: %s' % i)
+        def add_child(self,child):
+            #print("adding child")
+            self.start()
+            self.children.append(child)
+            if not self.feeding:
+                self.feed_children()
 
-            return codes
+        def feed_children(self):
+            if self.children:
+                self.feeding = True
+                #print("scan()")
+                self.scan()
+                for child in self.children:
+                    child.digest(self.codes)
+                self.app._root().after(self.delay_ms,self.feed_children)
+            else:
+                self.feeding = False
+                self.stop()
 
 try:
     import pygame
@@ -113,6 +148,8 @@ else:
                 raise ValueError("Sorry, no cameras detected.")
             self.camera = None
             self.children = []
+            self.codes=[]
+            self.feeding = False
 
         def start(self,):
             if self.camera is None:
@@ -156,7 +193,7 @@ else:
                 #print("\n======\n\nNo QR Found\n\n======")
                 return None
 
-        def refresh(self,verbose=False):
+        def refresh(self,verbose=False):   #depracated, already?
             snap = self.camera.get_image()
             pil_string_image = pygame.image.tostring(snap,"RGBA",False)
             self.still = Image.frombytes("RGBA",self.resolution,pil_string_image)
@@ -165,16 +202,19 @@ else:
             #print("adding child")
             self.start()
             self.children.append(child)
-            self.feed_children()
+            if not self.feeding:
+                self.feed_children()
 
         def feed_children(self):
             if self.children:
+                self.feeding = True
                 #print("scan()")
                 self.scan()
                 for child in self.children:
                     child.digest(self.codes)
                 self.app._root().after(self.delay_ms,self.feed_children)
             else:
+                self.feeding = False
                 self.stop()
 
 
@@ -186,8 +226,9 @@ class Payload(object):
         self.msgType = msgType
         self.app = app
         self.signal_app = signal_app
-        self.pattern = re.compile(self.msgType + r",(?P<crc>[a-z0-9]{8}),(?P<rank>[0-9]{1,3})/(?P<total>[0-9]{1,3}):(?P<payload>\S+)")
+        self.pattern = re.compile(self.msgType + r",(?P<crc>[a-z0-9]{8}),(?P<rank>[0-9]{1,5})/(?P<total>[0-9]{1,5}):(?P<payload>\S+)")
         self.bin = []
+        self.total = None
 
     def _use(self,match):
         index = int(match.group("rank")) - 1
@@ -208,15 +249,20 @@ class Payload(object):
                 if match:
                     if self.app and self.signal_app:
                         self.app.payload_started()
-                    self.bin = [0 for i in range(int(match.group("total")))]
+                    self.total = match.group("total")
+                    self.bin = [0 for i in range(int(self.total))]
                     self.crc = match.group("crc")
+
                     self._use(match)
-                    self.pattern = re.compile(self.msgType + "," + self.crc + r",(?P<rank>[0-9]{1,3})/%s:(?P<payload>\S+)"% match.group("total"))
+                    self.pattern = re.compile(self.msgType + "," + self.crc + r",(?P<rank>[0-9]{1,5})/(?P<total>[0-9]{1,5}):(?P<payload>\S+)")
                     break
 
         else:
             for code in codes:
                 match = self.pattern.fullmatch(code)
+                if not match.group("total") == self.total: # host has reset codes, with different bytes / QR, so discard current file #TODO if we can salvage the existing data, could be a speed up. would need like byte index (start,size,total)
+                    self.reset(match = match)
+
                 if match:
                     self._use(match)
 
@@ -249,9 +295,18 @@ class Payload(object):
                 return True
         return False
 
-    def reset(self):
-        self.pattern = re.compile(self.msgType + r",(?P<crc>[a-z0-9]{8}),(?P<rank>[0-9]{1,3})/(?P<total>[0-9]{1,3}):(?P<payload>\S+)")
+    def reset(self,match=None,hard = False):
+
         self.bin = []
+        self.total = None
+        if hard:
+            self.pattern = re.compile(self.msgType + r",(?P<crc>[a-z0-9]{8}),(?P<rank>[0-9]{1,5})/(?P<total>[0-9]{1,5}):(?P<payload>\S+)")
+        if match:
+            self.total = match.group("total")
+            self.bin = [0 for i in range(int(self.total))]
+            #self.crc = match.group("crc")
+            #self.pattern = re.compile(self.msgType +  "," + self.crc + r",(?P<rank>[0-9]{1,5})/(?P<total>[0-9]{1,5}):(?P<payload>\S+)")
+
 
 if __name__ == "__main__":
     from PIL import ImageTk

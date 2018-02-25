@@ -136,6 +136,7 @@ class Lunlumo(ttk.Frame):
     def wallet_alarm(self,err):
         MessageBox.showerror("Wallet Error",err)
         self.cancel = True
+        self.preview_cancel()
     def showinfo(self,msg):
         MessageBox.showinfo("fyi", msg)
 
@@ -165,7 +166,10 @@ class Lunlumo(ttk.Frame):
             self._root().after(50,when_finished,payload,*args,**kwargs)
 
     def payload_started(self):
-        self.sender.destroy()
+        try:
+            self.sender.destroy()
+        except Exception as e:
+            print(str(e))
         self.sender = None
 
 class Sidebar(ttk.Frame):
@@ -482,7 +486,7 @@ class Coldsign(ttk.Frame):
             if payload.toFile("unsigned_monero_tx"):
                 self.app.wallet.sign_transfer()
                 if not self.app.cancel:
-                    self.app.sender = SendTop(self.app,self._root(),payloadType="sigdtx",payloadPath = "unsigned_monero_tx")
+                    self.app.sender = SendTop(self.app,self._root(),payloadType="sigdtx",payloadPath = "signed_monero_tx")
                     # TODO u/jollymort : should we re-sync outputs/keyimages here?
                 else:
                     self.app.showerror("Stopped Automation","sign_transfer cancelled upstream.")
@@ -492,6 +496,7 @@ class Coldsign(ttk.Frame):
 
         else:
             self.app.showerror("Stopped Automation","sign_transfer cancelled upstream.")
+        self.app.preview_cancel()
 
 
 class Receive(ttk.Frame):
