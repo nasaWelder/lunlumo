@@ -117,7 +117,7 @@ class Lunlumo(ttk.Frame):
                 self.coldsignpage.grid(row=0,column = 1 ,sticky=tk.NW+tk.SE,padx=(20,20),pady=(20,20))
             self.sidebar.grid(row=0,column = 0,sticky=tk.NW)
             self.statusbar.grid(row=2,column = 0, columnspan =3,sticky=tk.W+tk.E)
-            self.receivepage.grid(row=0,column = 1 ,sticky=tk.W+tk.E,padx=(20,20),pady=(20,20))
+            self.receivepage.grid(row=0,column = 1 ,sticky=tk.NW+tk.E,padx=(20,20),pady=(20,20))
             self.donatepage.grid(row=0,column = 1 ,sticky=tk.NW+tk.E,padx=(20,20),pady=(20,20))
 
             #self._root().after(100,self.receivepage.grid_propagate,False)
@@ -534,29 +534,29 @@ class Receive(ttk.Frame):
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
         self.heading = ttk.Label(self,text = "Receive",style = "heading.TLabel")
 
-        self.body = VSFrame(self,fheight = 430,nobar = True)
-        self.dest = Destination(self.app,self.body.interior,name = "",cwidth = 40,select_handle = "Subaddress Book",background = "misc/genericspace.gif",mode = "receive")
+        #self.body = VSFrame(self,fheight = 430,nobar = True)
+        self.dest = Destination(self.app,self,name = "",cwidth = 40,select_handle = "Subaddress Book",background = "misc/genericspace.gif",mode = "receive")
 
         self.addresses = []
 
         #self.textAddress = MyWidget(self.app,self.body.interior,handle = "Address",choices = [self.app.initAddress],cwidth = 50,startVal =  self.app.initAddress )
         self.amountVar = tk.StringVar()
         self.dest.amount.value.config(textvariable = self.amountVar)
-        self.new_label = MyWidget(self.app,self.body.interior,handle = "New Subaddress",ewidth=23,choices = "entry",startVal = "<label goes here>")
+        self.new_label = MyWidget(self.app,self,handle = "New Subaddress",ewidth=23,choices = "entry",startVal = "<label goes here>")
         self.moon3 = tk.PhotoImage(file = "misc/moonbutton3.gif")
-        self.new_button = tk.Button(self.body.interior,text = "New Sub.",command =self.new_subaddress,image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
+        self.new_button = tk.Button(self,text = "New Sub.",command =self.new_subaddress,image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
         #self.amount = MyWidget(self.app,self.body.interior,handle = "Amount",choices = "entry",optional = True,activeStart=False)
         #self.amount.value.configure(textvariable = self.amountVar)
         self.amountVar.trace("w", lambda name, index, mode, sv=self.amountVar: self.amountCallback(sv))
         #self.amount.optState.trace("w", lambda name, index, mode, sv=self.amountVar: self.amountCallback(sv))
-        self.qr = ttk.Label(self.body.interior,style = "app.TLabel")
+        self.qr = ttk.Label(self,style = "app.TLabel")
         self.genQR()
 
         self.heading.grid(row=0,column=0,sticky = tk.W,pady= (10,15))
-        self.body.grid(row=1,column=0,sticky = tk.W+ tk.E,pady= (5,20))
-        self.dest.grid(row=0,column=0,columnspan = 2,sticky = tk.W,padx = (15,15))
-        self.new_label.grid(row=1,column=0,sticky = tk.W,padx = (109,0),pady=(15,0))
-        self.new_button.grid(row=1,column=1,sticky = tk.W,padx = (0,10),pady=(25,0))
+        #self.body.grid(row=1,column=0,sticky = tk.W+ tk.E,pady= (5,20))
+        self.dest.grid(row=1,column=0,columnspan = 2,sticky = tk.W,padx = (15,15))
+        self.new_label.grid(row=2,column=0,sticky = tk.W,padx = (109,0),pady=(15,0))
+        self.new_button.grid(row=2,column=1,sticky = tk.W,padx = (0,10),pady=(25,0))
         #self.textAddress.grid(row=1,column=0,columnspan = 2,sticky = tk.W)
         #self.amount.grid(row=2,column=1,sticky = tk.E,pady= (10,0))
         self.qr.grid(row=3,column=0,sticky = tk.W+tk.E,padx=(40,0),pady= (15,10),columnspan = 2)
@@ -592,7 +592,7 @@ class Receive(ttk.Frame):
         return addlist
 
     def amountCallback(self,event = None,arg = None):
-        self.grid_propagate(False)
+        #self.grid_propagate(False)
         self._root().after(200,self.genQR)
 
     def genQR(self):
