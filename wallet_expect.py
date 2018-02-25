@@ -51,10 +51,13 @@ WALLET_COLOR            = r"\x1b\[[0-9;]+m"
                            #\\x1b\[0m\\r\\x1b\[K
 
 class Wallet(object):
-    def __init__(self, walletFile = None, password = '',daemonAddress = None, daemonHost = None,testnet = False,cold = True,gui=False,postHydra = False,debug = True,cmd = "./monero-wallet-cli"):
-        self.cmdMonero = cmd
+    def __init__(self, walletFile = None, password = '',daemonAddress = None, daemonHost = None,testnet = False,cold = True,gui=False,postHydra = False,debug = True,cmd = "./monero-wallet-cli",coin = "monero"):
+        self.wallet_cli = cmd
+        if not os.path.exists(self.wallet_cli):
+            raise Exception("Unable to find supplied path to wallet-cli: %s"% self.wallet_cli)
         self.busy = True
         self.gui = gui
+        self.coin = coin
         if debug is True:
             debug = 1
         elif debug is False:
@@ -92,6 +95,12 @@ class Wallet(object):
             self.patterns.update({"accounts_parts": re.compile(r"(?P<index>[0-9]{1,5}) (?P<address>[a-zA-z0-9]{6})[ ]+(?P<balance>[0-9.]+)[ ]+(?P<unlocked>[0-9.]+)[ ]+(?P<label>[\S ]*)")})
             self.patterns.update({"accounts_individual": re.compile(r"[0-9]{1,5} [a-zA-z0-9]{6}[ ]+[0-9.]+[ ]+[0-9.]+[ ]+[\S ]*")})
             self.patterns.update({"accounts_tag": re.compile(r"(?P<tag>[\S ]+)[\s]+Tag's description:")})
+        if self.coin == "aeon":
+            self.patterns.update({"address" : re.compile(r"[a-zA-Z0-9][a-zA-Z0-9]{96}")}) # TODO remove chars not found in addresses, testnet subaddresses?
+            self.patterns.update({"address_all_whole": re.compile(r"[0-9]+ +[a-zA-Z0-9][a-zA-Z0-9]{96}  [\S ]+\)?")})
+            self.patterns.update({"address_all_parts": re.compile(r"(?P<index>[0-9]+) +(?P<address>[a-zA-Z0-9][a-zA-Z0-9]{96})  (?P<label>[\S ]+\)?)")})
+            self.patterns.update({"address_book" : re.compile(r"Index: [0-9]+\s+Address: [a-zA-Z0-9][a-zA-Z0-9]{96}\s+Payment ID: <[0-9]+>\s+Description:[\S ]*[\r\n]*")})
+            self.patterns.update({"address_book_parts" : re.compile(r"Index: (?P<index>[0-9]+)\s+Address: (?P<address>[a-zA-Z0-9][a-zA-Z0-9]{96})\s+Payment ID: <(?P<payid>[0-9]+)>\s+Description:(?P<desc>[\S ]*)[\r\n]*")})
         #####################################################
         self.walletFile = walletFile.split()[0]  #split is to defeat sneaky attack
         if not walletFile:
@@ -160,9 +169,9 @@ class Wallet(object):
             self.child.terminate(force=True)
 
     def startWallet(self):
-        #self.cmdMonero = os.path.join(MONERO_DIR,"monero-wallet-cli")
-        if self.testnet: print("self.cmdMonero: ",self.cmdMonero)
-        self.child = pexpect.spawn(self.cmdMonero + ' ' + ''.join(arg + ' ' for arg in self.walletArgs),encoding= ENCODING)
+        #self.wallet_cli = os.path.join(MONERO_DIR,"monero-wallet-cli")
+        if self.testnet: print("self.wallet_cli: ",self.wallet_cli)
+        self.child = pexpect.spawn(self.wallet_cli + ' ' + ''.join(arg + ' ' for arg in self.walletArgs),encoding= ENCODING)
         i = self.child.expect([pexpect.EOF,pexpect.TIMEOUT, WALLET_SYNCED_PROMPT, WALLET_NODAEMON_PROMPT], timeout = self.TIMEOUT)
         if i == 0: # EOF
             print(self.child.before.replace("\x1b[0m","").replace("\x1b[1;31m","").replace("\x1b[1;37m",""))
@@ -333,7 +342,7 @@ class Wallet(object):
             result = (info[1],info[2],info[3],info[4],info[5],)   #TODO need a regex to make sure this doesn't pick up some garbage
         except IndexError:
             result = None
-        if not result:
+        if not result or not "Current fee" in result[0]:
             result = ("Error Getting Backlog/Fees","Not Available","Not Available","Not Available","Not Available")
         self.debug("fee result",result,1)
         return result

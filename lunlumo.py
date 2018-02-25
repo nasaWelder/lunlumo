@@ -69,7 +69,14 @@ class Lunlumo(ttk.Frame):
         self.busy = False
         self.cancel = False
         self.cold = cold
-        self.wallet = wex.Wallet(walletFile, password,daemonAddress, daemonHost,testnet,self.cold,gui=self,postHydra = True,debug = 33,cmd = cmd)
+        if "monero-wallet-cli" in os.path.basename(cmd):
+            self.coin = "monero"
+        elif "aeon-wallet-cli" in os.path.basename(cmd):
+            self.coin = "aeon"
+        else:
+            raise Exception("Unknown coin %s" % os.path.basename(cmd))
+
+        self.wallet = wex.Wallet(walletFile, password,daemonAddress, daemonHost,testnet,self.cold,gui=self,postHydra = True,debug = 33,cmd = cmd,coin = self.coin)
 
         if camera_choice == "webcam (v4l)":
             from scanner import Scanner_pygame
@@ -101,6 +108,7 @@ class Lunlumo(ttk.Frame):
             self.sidebar = Sidebar(self,self)
             self.statusbar = Statusbar(self,self)
             self.receivepage = Receive(self,self,background = background )
+            self.donatepage = Donate(self,self)
             if not self.cold:
                 self.sendpage = SendPane(self,self,background = background )
                 self.sendpage.grid(row=0,column = 1 ,sticky=tk.NW+tk.SE,padx=(20,20),pady=(20,20))
@@ -110,6 +118,7 @@ class Lunlumo(ttk.Frame):
             self.sidebar.grid(row=0,column = 0,sticky=tk.NW)
             self.statusbar.grid(row=2,column = 0, columnspan =3,sticky=tk.W+tk.E)
             self.receivepage.grid(row=0,column = 1 ,sticky=tk.W+tk.E,padx=(20,20),pady=(20,20))
+            self.donatepage.grid(row=0,column = 1 ,sticky=tk.NW+tk.E,padx=(20,20),pady=(20,20))
 
             #self._root().after(100,self.receivepage.grid_propagate,False)
 
@@ -223,7 +232,7 @@ class Sidebar(ttk.Frame):
             self.go_coldsign = tk.Button(self,text = "cold sig",command = self.go_coldsign_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "skyblue1",image = self.bgv,compound = tk.CENTER,cursor = "exchange")
         self.go_receive = tk.Button(self,text = "receive",command = self.go_receive_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "green",image = self.bg2,compound = tk.CENTER,cursor = "plus")
         self.go_extras = tk.Button(self,text = "extras",command = self.go_send_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "blue",image = self.bg3,compound = tk.CENTER,cursor = "trek",state="disabled")
-        self.go_donate = tk.Button(self,text = "donate",command = self.go_send_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "orange",image = self.bgv,compound = tk.CENTER,cursor = "heart")
+        self.go_donate = tk.Button(self,text = "donate",command = self.go_donate_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "orange",image = self.bgv,compound = tk.CENTER,cursor = "heart")
 
 
 
@@ -244,6 +253,8 @@ class Sidebar(ttk.Frame):
         self.app.coldsignpage.lift()
     def go_receive_event(self):
         self.app.receivepage.lift()
+    def go_donate_event(self):
+        self.app.donatepage.lift()
 
     def account_chosen(self):
         try:
@@ -305,7 +316,7 @@ class Statusbar(ttk.Frame):
         self.delay = delay
         self.status = ttk.Label(self,text = "Checking Status...",style = "smaller.TLabel")
         self.copyright = tk.Label(self, text = "(c) 2018 u/NASA_Welder",foreground="white", background="black",font=('Liberation Mono','10','normal'))
-        self.status.grid(row = 0, column =0)
+        self.status.grid(row = 0, column =0,pady=(5,5))
         self.copyright.grid(row = 0, column =1,sticky = tk.E,padx=(80,0))
 
 
@@ -370,6 +381,10 @@ class Destination(ttk.Frame):
             self.start = self.app.subaddress_book_menu[0]
             #print("--------------------------STARTING SUB ADDRESS",self.start)
             self.cmd = self.subaddress_book_chosen
+        if self.mode =="donate":
+            self.localmenu = [""]
+            self.start = ""
+            self.cmd = self.do_nothing
         if background:
             self.bg = tk.PhotoImage(file = background)
             self.bglabel = tk.Label(self, image=self.bg)
@@ -382,8 +397,12 @@ class Destination(ttk.Frame):
         self.heading.grid(row=0,column=1,sticky = tk.W,pady= (0,0))
         self.dest_address.grid(row=1,column=1,sticky = tk.E,pady= (0,0))
         self.amount.grid(row=0,column=0,rowspan = 2,sticky = tk.NE,pady= (0,0),padx = (0,25))
-        self.address_book_select.grid(row=3,column=0,columnspan = 4,sticky = tk.E,pady= (5,0))
-
+        if not self.mode =="donate":
+            self.address_book_select.grid(row=3,column=0,columnspan = 4,sticky = tk.E,pady= (5,0))
+        else:
+            self.nasawelder_address = "48Zuamrb7P5NiBHrSN4ua3JXRZyPt6XTzWLawzK9QKjTVfsc2bUr1UmYJ44sisanuCJzjBAccozckVuTLnHG24ce42Qyak6" # u/NASA_Welder
+            self.dest_insert(self.nasawelder_address)
+            self.dest_address.configure(state='disabled')
         #for windows
         self.address_book_select.bind("<MouseWheel>", self.empty_scroll_command)
         # Linux and other *nix systems
@@ -393,6 +412,8 @@ class Destination(ttk.Frame):
             self._root().after(100,self.subaddress_book_chosen)
     def empty_scroll_command(self, event):
         return "break"
+    def do_nothing(self):
+        pass
 
     def dest_insert(self,address):
         self.dest_address.delete('1.0', tk.END)
@@ -483,10 +504,12 @@ class Coldsign(ttk.Frame):
 
     def recv_qr_unsigned_tx(self,payload):
         if not self.app.cancel:
-            if payload.toFile("unsigned_monero_tx"):
+            unsigned_tx_path = "unsigned_%s_tx" % self.app.coin
+            if payload.toFile(unsigned_tx_path):
                 self.app.wallet.sign_transfer()
                 if not self.app.cancel:
-                    self.app.sender = SendTop(self.app,self._root(),payloadType="sigdtx",payloadPath = "signed_monero_tx")
+                    signed_tx_path = "signed_%s_tx" % self.app.coin
+                    self.app.sender = SendTop(self.app,self._root(),payloadType="sigdtx",payloadPath = signed_tx_path)
                     # TODO u/jollymort : should we re-sync outputs/keyimages here?
                 else:
                     self.app.showerror("Stopped Automation","sign_transfer cancelled upstream.")
@@ -504,14 +527,14 @@ class Receive(ttk.Frame):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
-        self.coin = coin
+        self.coin = self.app.coin
         if background:
             self.bg = tk.PhotoImage(file = background)
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
         self.heading = ttk.Label(self,text = "Receive",style = "heading.TLabel")
 
-        self.body = VSFrame(self,fheight = 430)
+        self.body = VSFrame(self,fheight = 430,nobar = True)
         self.dest = Destination(self.app,self.body.interior,name = "",cwidth = 40,select_handle = "Subaddress Book",background = "misc/genericspace.gif",mode = "receive")
 
         self.addresses = []
@@ -536,7 +559,7 @@ class Receive(ttk.Frame):
         self.new_button.grid(row=1,column=1,sticky = tk.W,padx = (0,10),pady=(25,0))
         #self.textAddress.grid(row=1,column=0,columnspan = 2,sticky = tk.W)
         #self.amount.grid(row=2,column=1,sticky = tk.E,pady= (10,0))
-        self.qr.grid(row=3,column=0,sticky = tk.W+tk.E,padx=(40,0),pady= (30,10),columnspan = 2)
+        self.qr.grid(row=3,column=0,sticky = tk.W+tk.E,padx=(40,0),pady= (15,10),columnspan = 2)
 
     def new_subaddress(self):
         label = self.new_label.get()[0]
@@ -545,7 +568,7 @@ class Receive(ttk.Frame):
     def idle_refresh(self,something = None):
         self._root().after_idle(self.refresh)
     def refresh(self,index = 0):
-        self.grid_propagate(False)
+        #self.grid_propagate(False)
         ###
         self.app.subaddress_book = self.app.wallet.address(address_all = True)
         self.app.subaddress_book_menu = []
@@ -573,17 +596,19 @@ class Receive(ttk.Frame):
         self._root().after(200,self.genQR)
 
     def genQR(self):
-        msg = self.coin + ":" + self.dest.dest_address.get("1.0",tk.END).strip()
+        msg = self.app.coin + ":" + self.dest.dest_address.get("1.0",tk.END).strip()
         if self.dest.amount.get()[0]:
             try:
-                msg += "?tx_amount=" + str(float(self.dest.amount.get()[0]))
+                valid = float(self.dest.amount.get()[0])
+                msg += "?tx_amount=" + self.dest.amount.get()[0]
             except ValueError as e:
                 self.dest.amount.value.delete(0, tk.END)
                 MessageBox.showerror("Amount Error",str(e))
         self.qrPage = pyqrcode.create(msg,error="L")
-        self.code = tk.BitmapImage(data=self.qrPage.xbm(scale=8))
-        self.code.config(background="gray60")
+        self.code = tk.BitmapImage(data=self.qrPage.xbm(scale=5))
+        self.code.config(background="gray70")
         self.qr.config(image = self.code)
+
 
 class SendPane(ttk.Frame):
     def __init__(self,app, parent,background = None,delay = 35000, *args, **kwargs):
@@ -595,8 +620,10 @@ class SendPane(ttk.Frame):
             self.bg = tk.PhotoImage(file = background)
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
+        self.build_page(background)
+    def build_page(self,background):
         self.heading = ttk.Label(self,text = "Send",style = "heading.TLabel")
-        self.destFrame = VSFrame(self,fheight = 230)
+        self.destFrame = VSFrame(self,fheight = 275)
         self.dests = []
         for i in range(10):
             if i in [1,4,7,]:
@@ -715,7 +742,7 @@ class SendPane(ttk.Frame):
 
     def recv_qr_signed_tx(self,payload):
         if not self.app.cancel:
-            signed_tx_path = "signed_monero_tx"
+            signed_tx_path = "signed_%s_tx" % self.app.coin
             if payload.toFile(signed_tx_path):
                 self.app.wallet.submit_transfer()
                 #self._root().after(10,self.make_unsigned_tx)
@@ -740,6 +767,77 @@ class SendPane(ttk.Frame):
             self.backlog3.config(text=fee_info[3].replace("priority 3","elevated"))
             self.backlog4.config(text=fee_info[4].replace("priority 4","priority"))
         self._root().after(self.delay,self.idle_refresh)
+
+##########################
+class Donate(SendPane):
+    def __init__(self,app, parent,background = "misc/genericspace3.gif", *args, **kwargs):
+        SendPane.__init__(self,app, parent,background = "misc/genericspace3.gif", *args, **kwargs)
+        self.app = app
+        self.parent = parent
+
+        if background:
+            self.bg = tk.PhotoImage(file = background)
+            self.bglabel = tk.Label(self, image=self.bg)
+            self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
+        self.build_page(background)
+    def build_page(self,background):
+        self.heading = ttk.Label(self,text = "Donate",style = "heading.TLabel")
+        #self.destFrame = VSFrame(self,fheight = 230)
+        self.mydest = Destination(self.app,self,name = "" ,background = "misc/genericspace.gif",mode = "donate")
+        self.dests = [self.mydest]
+
+        self.blurb = ttk.Label(self,text = "Thanks for using lunlumo. Continued development is made possible by letting my rugrat play with the kids at daycare. Consider chipping in to the babysitting fund.",style = "app.TLabel",wraplength = 485)
+        self.author = ttk.Label(self,text = "- u/NASA_Welder",style = "app.TLabel")
+
+        #############################
+        self.extra = ttk.Frame(self,style = "app.TFrame",)
+        self.moon3 = tk.PhotoImage(file = "misc/moonbutton3.gif")
+
+
+        #self.payid_title =  ttk.Label(self.extra,text = "Payment ID (optional)",style = "app.TLabel")
+        self.payment_id_entry = tk.Text(self,bg = "white",height = 2,width = 33,insertbackground ="#D15101",selectbackground = "#D15101" )
+        self.priority = MyWidget(self.app,self,handle = "Priority",choices = ["unimportant","normal","elevated","priority"],startVal = "unimportant")
+        self.privacy = MyWidget(self.app,self,handle = "Privacy",choices = [str(i) for i in range(5,51)],startVal = 5)
+        self.send_button = tk.Button(self,text = "send",command =self.get,image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
+        self.amountVar = tk.StringVar()
+        self.mydest.amount.value.config(textvariable = self.amountVar)
+        self.amountVar.trace("w", lambda name, index, mode, sv=self.amountVar: self.amountCallback(sv))
+
+        self.qr = ttk.Label(self,style = "app.TLabel")
+        self.genQR()
+
+        #self.payid_title.grid(row=0,column=1,columnspan=2,sticky = tk.W,)
+        #self.payment_id_entry.grid(row=1,column=1,columnspan=2,sticky = tk.E)
+        #self.priority.grid(row=2,column=1,sticky = tk.E,pady=(10,0))
+        #self.privacy.grid(row=2,column=2,sticky = tk.E,pady=(10,0))
+
+        #############################
+        self.heading.grid(row=0,column=0,columnspan = 3,sticky = tk.W,pady= (10,15))
+        self.mydest.grid(row=3,column=0,columnspan = 3,sticky = tk.NW + tk.E,padx = (30,0),pady = (15,0),)
+        self.send_button.grid(row=4,column=2,sticky = tk.N,pady=(20,0),rowspan = 2)
+        self.qr.grid(row=5,column=0,sticky = tk.W+tk.E,padx=(10,0),pady= (35,30),columnspan = 2)
+        self.blurb.grid(row=1,column=0,sticky = tk.W+tk.E,padx=(5,0),pady= (5,0),columnspan = 3)
+        self.author.grid(row=2,column=0,sticky = tk.W+tk.E,padx=(235,0),pady= (0,0),columnspan = 3)
+        #self.destFrame.grid(row=1,column=0,columnspan = 3,pady = (0,25),)
+        #self.extra.grid(row=2,column=0,columnspan = 3,sticky = tk.E,pady=(10,0),padx=(0,15))
+
+    def amountCallback(self,event = None,arg = None):
+        self.grid_propagate(False)
+        self._root().after(200,self.genQR)
+
+    def genQR(self):
+        msg = "monero" +  ":" + self.mydest.dest_address.get("1.0",tk.END).strip()
+        if self.mydest.amount.get()[0]:
+            try:
+                msg += "?tx_amount=" + str(float(self.mydest.amount.get()[0]))
+            except ValueError as e:
+                self.mydest.amount.value.delete(0, tk.END)
+                MessageBox.showerror("Amount Error",str(e))
+        self.qrPage = pyqrcode.create(msg,error="L")
+        self.code = tk.BitmapImage(data=self.qrPage.xbm(scale=5))
+        self.code.config(background="gray75")
+        self.qr.config(image = self.code)
+##########################
 
 class FilePicker(ttk.Frame):
     def __init__(self,app, parent,handle,start = None,buttonName = "Select",askPass = False,background = None,ftypes = [("all","*")],idir="./", *args, **kwargs):
@@ -1257,17 +1355,24 @@ class VSFrame(tk.Frame):
     * This frame only allows vertical scrolling
 
     """
-    def __init__(self, parent,fheight = 200, background = "misc/genericspacev.gif",*args, **kw):
+    def __init__(self, parent,fheight = 200, nobar = False, background = "misc/genericspacev.gif",*args, **kw):
         tk.Frame.__init__(self, parent, *args, **kw)
-
+        if background:
+            self.bgf = tk.PhotoImage(file = background)
+            self.bglabelf = tk.Label(self, image=self.bgf)
+            self.bglabelf.place(x=0, y=0, relwidth=1, relheight=1)
         # create a canvas object and a vertical scrollbar for scrolling it
         vscrollbar = tk.Scrollbar(self, orient=tk.VERTICAL)
-        vscrollbar.pack(fill=tk.Y, side=tk.RIGHT, expand=tk.FALSE)
+        if not nobar:
+            vscrollbar.pack(fill=tk.Y, side=tk.RIGHT, expand=tk.FALSE)
         canvas = tk.Canvas(self, bd=0, highlightthickness=0,
                         yscrollcommand=vscrollbar.set,height = fheight)
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=tk.TRUE)
         vscrollbar.config(command=canvas.yview)
-
+        if background:
+            self.bgc = tk.PhotoImage(file = background)
+            self.bglabelc = tk.Label(canvas, image=self.bgc)
+            self.bglabelc.place(x=0, y=0, relwidth=1, relheight=1)
         # reset the view
         canvas.xview_moveto(0)
         canvas.yview_moveto(0)
