@@ -62,13 +62,15 @@ import webbrowser as web
 # 48Zuamrb7P5NiBHrSN4ua3JXRZyPt6XTzWLawzK9QKjTVfsc2bUr1UmYJ44sisanuCJzjBAccozckVuTLnHG24ce42Qyak6
 
 class Lunlumo(ttk.Frame):
-    def __init__(self,app, parent,walletFile = None, password = '',background ="misc/genericspace2.gif",daemonAddress = None, daemonHost = None,testnet = False,cold = True,cmd = "./monero-wallet-cli",camera_choice = None, *args, **kwargs):
+    def __init__(self,app, parent,walletFile = None, password = '',background ="misc/genericspace2.gif",daemonAddress = None, daemonHost = None,testnet = False,cold = True,cmd = "./monero-wallet-cli",camera_choice = None,light = True, *args, **kwargs):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
         self.busy = False
         self.cancel = False
         self.cold = cold
+        self.light = light
+        self.background = background
         if "monero-wallet-cli" in os.path.basename(cmd):
             self.coin = "monero"
         elif "aeon-wallet-cli" in os.path.basename(cmd):
@@ -95,22 +97,29 @@ class Lunlumo(ttk.Frame):
         self.account_menu = ["0 %s Primary account (loading tag)" % self.initAddress[:6]]
         self.primary_account = self.account_menu[0]
         self.earliestBalance = 1000
+        if not self.light:
+            self.full_start()
+        else:
+            self.coldsignpage = Coldsign(self,self)
+            self.coldsignpage.grid(row=0,column = 1 ,sticky=tk.NW+tk.SE,padx=(20,20),pady=(20,20))
+
+    def full_start(self):
         self.bg = tk.PhotoImage(file = "misc/genericspace2.gif")
         self.bg1 = tk.PhotoImage(file = "misc/genericspace.gif")
         self.bg3 = tk.PhotoImage(file = "misc/genericspace3.gif")
         self.bgv = tk.PhotoImage(file = "misc/genericspacev.gif")
 
-        if background:
+        if self.background:
 
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
         try:
             self.sidebar = Sidebar(self,self)
             self.statusbar = Statusbar(self,self)
-            self.receivepage = Receive(self,self,background = background )
+            self.receivepage = Receive(self,self,background = self.background )
             self.donatepage = Donate(self,self)
             if not self.cold:
-                self.sendpage = SendPane(self,self,background = background )
+                self.sendpage = SendPane(self,self,background = self.background )
                 self.sendpage.grid(row=0,column = 1 ,sticky=tk.NW+tk.SE,padx=(20,20),pady=(20,20))
             else:
                 self.coldsignpage = Coldsign(self,self)
@@ -455,18 +464,23 @@ class Coldsign(ttk.Frame):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
-        if background:
-            self.bg = tk.PhotoImage(file = background)
-            self.bglabel = tk.Label(self, image=self.bg)
-            self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
-        self.heading = ttk.Label(self,text = "Cold Sign",style = "heading.TLabel")
-        self.moon3 = tk.PhotoImage(file = "misc/moonbutton3.gif")
-        #self.body = VSFrame(self,fheight = 430) # not yet
-        self.cold_transfer_button = tk.Button(self,text = "Sign tx",command =self.do_cold_sign,image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
+        if self.app.light:
+            self.moon3 = tk.PhotoImage(file = "misc/moonbutton3.gif")
+            self.cold_transfer_button = tk.Button(self,text = "Sign tx",command =self.do_cold_sign,image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
+            self.cold_transfer_button.grid(row=0,column=0,sticky = tk.E,padx = (10,10),pady=(10,10))
+        else:
+            if background:
+                self.bg = tk.PhotoImage(file = background)
+                self.bglabel = tk.Label(self, image=self.bg)
+                self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
+            self.heading = ttk.Label(self,text = "Cold Sign",style = "heading.TLabel")
+            self.moon3 = tk.PhotoImage(file = "misc/moonbutton3.gif")
+            #self.body = VSFrame(self,fheight = 430) # not yet
+            self.cold_transfer_button = tk.Button(self,text = "Sign tx",command =self.do_cold_sign,image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
 
-        self.heading.grid(row=0,column=0,sticky = tk.W,pady= (10,15))
-        #self.body.grid(row=1,column=0,sticky = tk.W+ tk.E,pady= (5,20))
-        self.cold_transfer_button.grid(row=1,column=1,sticky = tk.E,padx = (50,10),pady=(25,0))
+            self.heading.grid(row=0,column=0,sticky = tk.W,pady= (10,15))
+            #self.body.grid(row=1,column=0,sticky = tk.W+ tk.E,pady= (5,20))
+            self.cold_transfer_button.grid(row=1,column=1,sticky = tk.E,padx = (50,10),pady=(25,0))
 
     def do_cold_sign(self):
         self.app.outputs_payload = Payload("exoutp",app=self.app,signal_app = True)
