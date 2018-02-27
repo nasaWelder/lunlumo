@@ -880,7 +880,7 @@ class FilePicker(ttk.Frame):
         self.password = tk.Entry(self,text = self.handle,insertofftime=5000,show = "*",width = 13,foreground = "white")
         if start:
             self.selectVar.set(start)
-            self.displayVar.set(os.path.basename(choice))
+            self.displayVar.set(os.path.basename(start))
         self.select = ttk.Label(self,textvariable = self.displayVar,wraplength=210,style = "app.TLabel")
         #self.button = ttk.Button(self,text = buttonName,style = "app.TButton",command =self.dialog )
         self.button = tk.Button(self,text = "select",command =self.dialog,image = self.moon2,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
@@ -911,12 +911,12 @@ class FilePicker(ttk.Frame):
             return self.selectVar.get(),self.password.get()
 
 class Login(ttk.Frame):
-    def __init__(self,app, parent,background = None,*args, **kwargs):
+    def __init__(self,app, parent,settings,background = None,*args, **kwargs):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
         self.final = None
-
+        self.light = False
         self.moon1 = tk.PhotoImage(file = "misc/moonbutton1.gif")
         self.moon2 = tk.PhotoImage(file = "misc/moonbutton2.gif")
         self.moon3 = tk.PhotoImage(file = "misc/moonbutton3.gif")
@@ -928,14 +928,25 @@ class Login(ttk.Frame):
         self.logo = tk.PhotoImage(file = "misc/reddit_user_philkode_made_this.gif")
         self.showLogo = ttk.Label(self,image= self.logo,style = "app.TLabel",cursor = "shuttle")
         #heading = ttk.Label(first,text= "Wallet Options",style = "app.TLabel")
-        self.walletFile = FilePicker(self.app,self,"wallet file",askPass = True,start = None,background = "misc/genericspace.gif",ftypes = [("full","*.keys"),("watchonly","*.keys-watchonly")],idir="./")
-        self.testnet = MyWidget(self.app,self,handle = "testnet",optional = 1,)
+        self.walletFile = FilePicker(self.app,self,"wallet file",askPass = True,start = settings["wallet"]["wallet_file"],background = "misc/genericspace.gif",ftypes = [("full","*.keys"),("watchonly","*.keys-watchonly")],idir=os.path.dirname(sys.argv[1]))
+
+
+        self.testnet = MyWidget(self,self,handle = "testnet",optional = 1,activeStart=settings["wallet"]["testnet"])
         self.launch = tk.Button(self,text = "launch!",command =self.launch,cursor = "shuttle",image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
         #MyWidget(app, parent,handle,choices=None,subs = {},allowEntry = False,optional = False,activeStart=1,ewidth = 8,cwidth = None, cmd = None)
-        self.daemon = MyWidget(self.app,self,handle = "daemon",startVal = "None (cold wallet)",allowEntry = False,cwidth = 18,cipadx = 1,
+        dstart = None
+        try:
+            if settings["wallet"]["testnet"]:
+                dstart = settings["wallet"]["host[:port]"]["testnet"]
+            else:
+                dstart = settings["wallet"]["host[:port]"]["mainnet"]
+        except Exception as e:
+            print("WARNING: did not understand settings['wallet']['host[:port]'] choice:\n%s"% str(e))
+        self.daemon = MyWidget(self,self,handle = "daemon",startVal = settings["wallet"]["daemon"],allowEntry = False,cwidth = 18,cipadx = 1,
                                 choices = ["None (cold wallet)","local, already running","other, host[:port]",],
-                               subs={"other, host[:port]":{"handle":"host[:port]","choices":"entry","ewidth":20,"allowEntry":False},}) # allow Entry not applicable
-        self.camera_choice = MyWidget(self.app,self,handle = "camera",startVal = "None",allowEntry = False,cwidth = 18,cipadx = 1,
+                               subs={"other, host[:port]":{"handle":"host[:port]","choices":"entry","ewidth":20,"startVal": dstart,"allowEntry":False},}) # allow Entry not applicable
+        #self.daemon.findSubs()
+        self.camera_choice = MyWidget(self,self,handle = "camera",startVal = settings["app"]["camera"],allowEntry = False,cwidth = 18,cipadx = 1,
                                 choices = ["None","webcam (v4l)","raspi cam",])
 
         self.showLogo.grid(row=0,column=0,rowspan=1,columnspan=2,sticky = tk.E)
@@ -988,7 +999,7 @@ class MyWidget(ttk.Frame):
         self.subs = subs
         self.sub = None
 
-        if False:# background and not self.app.light:
+        if background and not self.app.light:
             self.bg = tk.PhotoImage(file = background)
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
@@ -1222,6 +1233,7 @@ class SendFrame(tk.Frame):
         self.app = app
         self.checksum = crc(payloadPath)
         self.skip = []
+        self.parent = parent
         self.delay = delay
         self.PAGE_SIZE = PAGE_SIZE
         self.payloadType = payloadType
@@ -1377,8 +1389,9 @@ class VSFrame(tk.Frame):
 
     """
     def __init__(self, parent,fheight = 200, nobar = False, background = "misc/genericspacev.gif",*args, **kw):
+        self.parent = parent
         tk.Frame.__init__(self, parent,bg = "black", *args, **kw)
-        if background and not self.app.light:
+        if background and not self.parent.app.light:
             self.bgf = tk.PhotoImage(file = background)
             self.bglabelf = tk.Label(self, image=self.bgf)
             self.bglabelf.place(x=0, y=0, relwidth=1, relheight=1)
@@ -1390,7 +1403,7 @@ class VSFrame(tk.Frame):
                         yscrollcommand=vscrollbar.set,height = fheight,background = "black")
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=tk.TRUE)
         vscrollbar.config(command=canvas.yview)
-        if background and not self.app.light:
+        if background and not self.parent.app.light:
             self.bgc = tk.PhotoImage(file = background)
             self.bglabelc = tk.Label(canvas, image=self.bgc)
             self.bglabelc.place(x=0, y=0, relwidth=1, relheight=1)
@@ -1402,7 +1415,7 @@ class VSFrame(tk.Frame):
         self.interior = interior = tk.Frame(canvas,bg = "black")
         interior_id = canvas.create_window(0, 0, window=interior,
                                            anchor=tk.NW)
-        if background and not self.app.light:
+        if background and not self.parent.app.light:
             self.bg = tk.PhotoImage(file = background)
             self.bglabel = tk.Label(self.interior, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
@@ -1681,6 +1694,29 @@ Tlwg Typo
 
 
 if __name__ == "__main__":
+    import json
+    settings = {}
+    try:
+        with open(".settings","r") as p:
+            settings = json.load(p)
+    except Exception as e:
+        print("WARNING: unable to load .settings, proceeding default settings %s"% str(e))
+        settings = {'wallet': {
+                        'wallet_file': None,
+                        'daemon': 'None, (cold wallet)',
+                        'testnet': True,
+                        },
+                    'sendqr': {
+                        'qrBackground': 'gray62',
+                        'PAGE_SIZE': 700,
+                        'delay': 850,
+                        'qrScale': 8,
+                        'qrForeground': 'gray1',
+                        },
+                    'app': {
+                        'camera': 'None',
+                        'light': False}
+                        }
 
     first = tk.Tk()
 
@@ -1705,7 +1741,7 @@ if __name__ == "__main__":
     mystyle.configure("app.TEntry", foreground="black", background="gray55",font=('Liberation Mono','12','normal'))
     mystyle.configure("pass.TEntry", foreground="gray55", background="gray55",insertofftime=5000)
     first.option_add("*TCombobox*Listbox*selectBackground", "#D15101")
-    login = Login(first,first,background = "misc/genericspace.gif")
+    login = Login(first,first,settings = settings,background = "misc/genericspace.gif")
     login.pack()
 
     first.mainloop()
