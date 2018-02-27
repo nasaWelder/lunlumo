@@ -97,7 +97,7 @@ class Lunlumo(ttk.Frame):
         self.account_menu = ["0 %s Primary account (loading tag)" % self.initAddress[:6]]
         self.primary_account = self.account_menu[0]
         self.earliestBalance = 1000
-        if not self.light:
+        if True: #self.light:   #light mode solved by removing imagesfrom backgrounds...
             self.full_start()
         else:
             self.coldsignpage = Coldsign(self,self)
@@ -109,7 +109,7 @@ class Lunlumo(ttk.Frame):
         self.bg3 = tk.PhotoImage(file = "misc/genericspace3.gif")
         self.bgv = tk.PhotoImage(file = "misc/genericspacev.gif")
 
-        if self.background:
+        if self.background and not self.light:
 
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
@@ -200,14 +200,14 @@ class Sidebar(ttk.Frame):
         self.bg1 = tk.PhotoImage(file = "misc/genericspace.gif")
         self.bg2 = tk.PhotoImage(file = "misc/genericspace2.gif")
         self.bgv = tk.PhotoImage(file = "misc/genericspacev.gif")
-        if background:
+        if background and not self.app.light:
 
             self.bglabel = tk.Label(self, image=self.bg3)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
         self.logo = tk.PhotoImage(file = "misc/reddit_user_philkode_made_this.gif")
         self.showLogo = ttk.Label(self,image= self.logo)
-        self.balFrame =  tk.Frame(self,highlightcolor = "white",highlightbackground = "white",highlightthickness=3,background ="#4C4C4C")
-        if background:
+        self.balFrame =  tk.Frame(self,highlightcolor = "white",highlightbackground = "white",highlightthickness=3,background ="black",)#"#4C4C4C")
+        if background and not self.app.light:
             self.balbg = tk.PhotoImage(file = background)
             self.balbglabel = tk.Label(self.balFrame, image=self.balbg)
             self.balbglabel.place(x=0, y=0, relwidth=1, relheight=1)
@@ -318,7 +318,7 @@ class Statusbar(ttk.Frame):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
-        if background:
+        if background and not self.app.light:
             self.bg = tk.PhotoImage(file = background)
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
@@ -351,7 +351,7 @@ class Pane(ttk.Frame):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
-        if background:
+        if background and not self.app.light:
             self.bg = tk.PhotoImage(file = background)
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
@@ -394,7 +394,7 @@ class Destination(ttk.Frame):
             self.localmenu = [""]
             self.start = ""
             self.cmd = self.do_nothing
-        if background:
+        if background and not self.app.light:
             self.bg = tk.PhotoImage(file = background)
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
@@ -464,12 +464,12 @@ class Coldsign(ttk.Frame):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
-        if self.app.light:
+        if False:# self.app.light:
             self.moon3 = tk.PhotoImage(file = "misc/moonbutton3.gif")
             self.cold_transfer_button = tk.Button(self,text = "Sign tx",command =self.do_cold_sign,image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
             self.cold_transfer_button.grid(row=0,column=0,sticky = tk.E,padx = (10,10),pady=(10,10))
         else:
-            if background:
+            if background and not self.app.light:
                 self.bg = tk.PhotoImage(file = background)
                 self.bglabel = tk.Label(self, image=self.bg)
                 self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
@@ -492,7 +492,7 @@ class Coldsign(ttk.Frame):
         if not self.app.cancel:
             outputs_path = "imported_outputs.lunlumo"
             if payload.toFile(outputs_path):
-                self.app.wallet.import_ouputs(outputs_path)
+                self.app.wallet.import_outputs(outputs_path)
                 self._root().after(10,self.do_export_key_images)
             else:
                 print(repr(payload.bin))
@@ -542,7 +542,7 @@ class Receive(ttk.Frame):
         self.app = app
         self.parent = parent
         self.coin = self.app.coin
-        if background:
+        if background and not self.app.light:
             self.bg = tk.PhotoImage(file = background)
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
@@ -630,7 +630,7 @@ class SendPane(ttk.Frame):
         self.app = app
         self.parent = parent
         self.delay = delay
-        if background:
+        if background and not self.app.light:
             self.bg = tk.PhotoImage(file = background)
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
@@ -652,7 +652,7 @@ class SendPane(ttk.Frame):
         #############################
         self.extra = ttk.Frame(self,style = "app.TFrame",)
         self.moon3 = tk.PhotoImage(file = "misc/moonbutton3.gif")
-        if background:
+        if background and not self.app.light:
             self.bge = tk.PhotoImage(file = background)
             self.bglabele = tk.Label(self.extra, image=self.bge)
             self.bglabele.place(x=0, y=0, relwidth=1, relheight=1)
@@ -669,7 +669,7 @@ class SendPane(ttk.Frame):
         self.privacy.grid(row=2,column=2,sticky = tk.E,pady=(10,0))
         self.send_button.grid(row=3,column=2,sticky = tk.E,pady=(15,0))
         self.fee_frame = ttk.Frame(self.extra,style = "app.TFrame",width = 200)
-        if background:
+        if background and not self.app.light:
             self.bgf = tk.PhotoImage(file = background)
             self.bglabelf = tk.Label(self.fee_frame, image=self.bgf)
             self.bglabelf.place(x=0, y=0, relwidth=1, relheight=1)
@@ -789,7 +789,7 @@ class Donate(SendPane):
         self.app = app
         self.parent = parent
 
-        if background:
+        if background and not self.app.light:
             self.bg = tk.PhotoImage(file = background)
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
@@ -988,7 +988,7 @@ class MyWidget(ttk.Frame):
         self.subs = subs
         self.sub = None
 
-        if background:
+        if False:# background and not self.app.light:
             self.bg = tk.PhotoImage(file = background)
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
@@ -1103,7 +1103,7 @@ class MyWidget(ttk.Frame):
 
 ################
 class Preview(tk.Toplevel):
-    def __init__(self,app,parent,delay = 450,title="Scanner",*args,**kargs):
+    def __init__(self,app,parent,delay = 450*3,title="Scanner",*args,**kargs):
         tk.Toplevel.__init__(self,background = "black")
         self.app = app
         self.parent = parent
@@ -1115,6 +1115,8 @@ class Preview(tk.Toplevel):
         self.preview_screen.pack()
         self.status_display = tk.Label(self,text = "waiting for codes")
         self.status_display.pack()
+        self.status2 = tk.Label(self,text = "waiting for codes",wraplength = 250)
+        self.status2.pack()
         self.protocol("WM_DELETE_WINDOW", self.kill)
 
         w, h = self._root().winfo_screenwidth(), self._root().winfo_screenheight()
@@ -1129,6 +1131,11 @@ class Preview(tk.Toplevel):
             print("making thumb label")
             self.img = ImageTk.PhotoImage(thumb)
             self.preview_screen.config(image = self.img)
+            try:
+                stat = [i+1 for i,v in enumerate(self.app.scanner.children[0].bin) if v ==0]
+                self.status2.configure(text=repr(stat))
+            except Exception as e:
+                print(str(e))
         self._root().after(self.delay,self.get_preview)
         self.attributes('-topmost', 1)
 
@@ -1370,8 +1377,8 @@ class VSFrame(tk.Frame):
 
     """
     def __init__(self, parent,fheight = 200, nobar = False, background = "misc/genericspacev.gif",*args, **kw):
-        tk.Frame.__init__(self, parent, *args, **kw)
-        if background:
+        tk.Frame.__init__(self, parent,bg = "black", *args, **kw)
+        if background and not self.app.light:
             self.bgf = tk.PhotoImage(file = background)
             self.bglabelf = tk.Label(self, image=self.bgf)
             self.bglabelf.place(x=0, y=0, relwidth=1, relheight=1)
@@ -1380,10 +1387,10 @@ class VSFrame(tk.Frame):
         if not nobar:
             vscrollbar.pack(fill=tk.Y, side=tk.RIGHT, expand=tk.FALSE)
         canvas = tk.Canvas(self, bd=0, highlightthickness=0,
-                        yscrollcommand=vscrollbar.set,height = fheight)
+                        yscrollcommand=vscrollbar.set,height = fheight,background = "black")
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=tk.TRUE)
         vscrollbar.config(command=canvas.yview)
-        if background:
+        if background and not self.app.light:
             self.bgc = tk.PhotoImage(file = background)
             self.bglabelc = tk.Label(canvas, image=self.bgc)
             self.bglabelc.place(x=0, y=0, relwidth=1, relheight=1)
@@ -1392,10 +1399,10 @@ class VSFrame(tk.Frame):
         canvas.yview_moveto(0)
 
         # create a frame inside the canvas which will be scrolled with it
-        self.interior = interior = tk.Frame(canvas)
+        self.interior = interior = tk.Frame(canvas,bg = "black")
         interior_id = canvas.create_window(0, 0, window=interior,
                                            anchor=tk.NW)
-        if background:
+        if background and not self.app.light:
             self.bg = tk.PhotoImage(file = background)
             self.bglabel = tk.Label(self.interior, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
@@ -1718,7 +1725,7 @@ if __name__ == "__main__":
         mystyle.configure("unlocked.TLabel", foreground="light green", background="black",font=('Liberation Mono','12','normal')) #"#4C4C4C")
         mystyle.configure("smaller.TLabel", foreground="white", background="black",font=('Liberation Mono','10','normal')) #"#4C4C4C")
         mystyle.configure("heading.TLabel", foreground="white", background="black",font=('Liberation Mono','36','normal')) #"#4C4C4C")
-        mystyle.configure("app.TFrame", foreground="gray55", background="#4C4C4C",)
+        mystyle.configure("app.TFrame", foreground="gray55", background="black")#"#4C4C4C",)
         mystyle.configure("app.TButton", foreground="gray55", background="#D15101",activeforeground ="#F2681C")#F2681C
         mystyle.configure("app.TCheckbutton", foreground="gray55", background="black") #"#4C4C4C")
         mystyle.configure("app.TCombobox", background="#F2681C",selectbackground = "#D15101") #postoffset = (0,0,500,0))

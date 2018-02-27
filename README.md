@@ -32,7 +32,10 @@ The following assumes Ubuntu Mate:
 * sudo -H pip3 install setuptools --upgrade
 * sudo -H pip3 install zbarlight
 * pip3 install --upgrade pip
+* sudo apt-get build-dep python-pygame
+* sudo apt install python-dev
 * sudo -H pip3 install pygame
+* sudo usermod -a -G video timepi  # raspi only
 
 ## Hardware / Setup
 The GUI can be used standalone, on an internet connected computer for normal transaction usage, however, lunlumo's intended purpose is to allow cold transaction signing via QR code stream between 2 computers.

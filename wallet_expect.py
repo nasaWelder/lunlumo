@@ -72,7 +72,7 @@ class Wallet(object):
                 global message
 
         self.ready = False
-        self.TIMEOUT = 300   # may need to bump this up if using new wallets
+        self.TIMEOUT = 3600   # may need to bump this up if using new wallets
         self.walletArgs = []
 
         # helium hydra
