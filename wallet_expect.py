@@ -250,7 +250,7 @@ class Wallet(object):
             info = self.walletCmdHack("import_key_images %s" % keyImagesFileName,verbose=verbose,timeout = 15,faster = r"Signed key images imported to height[^\\]+")
         else:
             info = self.walletCmd("import_key_images %s" % keyImagesFileName,verbose = True)
-        self.debug("export_key_images info",info,1)
+        self.debug("import_key_images info",info,1)
         # Signed key images imported to height 1091104, 25.482444280000 spent, 11.000000000000 unspent
         # TODO need a regex for line above
         if not "Signed key images imported to height" in info:
@@ -304,9 +304,9 @@ class Wallet(object):
         else:
             info = self.walletCmd("submit_transfer",verbose=verbose,autoConfirm = autoConfirm)
         self.busy = False
-
-        if not "Money successfully sent" in info:
-            self.haltAndCatchFire('Wallet Error! unexpected result in sign_transfer: %s' % (info))
+        #'sign_transfer\r\n Y\r\nTransaction successfully signed to file signed_monero_tx, txid 116b54e5bb8ccf8687d84740c8ebb3ea97e60236dbf7c11c239e0c8c1ffe8cfc'
+        #if not "Money successfully sent" in info:
+            #self.haltAndCatchFire('Wallet Error! unexpected result in submit_transfer: %s' % (info))
         if self.gui:
             self.gui.showinfo(info)
         return info
@@ -731,6 +731,7 @@ class Wallet(object):
 
 if __name__ == "__main__":
     import pprint as pp
+    """
     wallet = Wallet(walletFile = os.path.join(MONERO_DIR,"newtestnet"), password = '',daemonHost="testnet.xmrchain.net", testnet = True,cold = 0,debug = 3,postHydra = True)
     hsleep = 2
     fast_account = wallet.account_helper(wallet.boot)
@@ -756,13 +757,13 @@ if __name__ == "__main__":
     wallet.stopWallet()
 
     """
-    hotwallet = Wallet(walletFile = os.path.join(MONERO_DIR,"testview"), password = '',daemonAddress = "testnet.kasisto.io:28081",testnet = True,cold = False)
-    coldwallet = Wallet(walletFile = os.path.join(MONERO_DIR,"testnet"), password = '',testnet = True,cold = True,gui=True)
+    hotwallet = Wallet(cmd = "/home/devarea/bin/new_monero/monero-wallet-cli",walletFile = os.path.join(MONERO_DIR+"../new_monero/","newtestview"), password = '',daemonHost = "testnet.xmrchain.net",testnet = True,cold = False,postHydra = True)
+    coldwallet = Wallet(cmd = "/home/devarea/bin/new_monero/monero-wallet-cli",walletFile = os.path.join(MONERO_DIR+"../new_monero/","newtestnet"), password = '',testnet = True,cold = True,postHydra = True)
     hsleep = 2
-    p = coldwallet.address_book()
-    import pprint
-    pprint.pprint(p)
-    sys.exit(0)
+
+
+
+
     hotwallet.export_outputs()
     time.sleep(hsleep)
     coldwallet.import_outputs()
@@ -771,7 +772,7 @@ if __name__ == "__main__":
     time.sleep(hsleep)
     hotwallet.import_key_images()
     time.sleep(hsleep)
-    hotwallet.transfer(priority = "unimportant", destAddress = "A16nFcW5XuU6Hm2owV4g277yWjjY6cVZy5YgE15HS6C8JujtUUP51jP7pBECqk78QW8K78yNx9LB4iB8jY3vL8vw3JhiQuX", amount = ".45",autoConfirm = 1)
+    hotwallet.transfer("transfer unimportant A16nFcW5XuU6Hm2owV4g277yWjjY6cVZy5YgE15HS6C8JujtUUP51jP7pBECqk78QW8K78yNx9LB4iB8jY3vL8vw3JhiQuX 0.45",autoConfirm = 1)
     time.sleep(hsleep)
     coldwallet.sign_transfer(autoConfirm = 0)
     time.sleep(hsleep)
@@ -780,7 +781,7 @@ if __name__ == "__main__":
     #print(openwallet.child.before)
     hotwallet.stopWallet()
     coldwallet.stopWallet()
-    """
+
 
 
 
