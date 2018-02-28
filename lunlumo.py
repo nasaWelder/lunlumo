@@ -62,7 +62,7 @@ import webbrowser as web
 # 48Zuamrb7P5NiBHrSN4ua3JXRZyPt6XTzWLawzK9QKjTVfsc2bUr1UmYJ44sisanuCJzjBAccozckVuTLnHG24ce42Qyak6
 
 class Lunlumo(ttk.Frame):
-    def __init__(self,app, parent,walletFile = None, password = '',background ="misc/genericspace2.gif",daemonAddress = None, daemonHost = None,testnet = False,cold = True,cmd = "./monero-wallet-cli",camera_choice = None,light = False, *args, **kwargs):
+    def __init__(self,app, parent,settings = settings,walletFile = None, password = '',background ="misc/genericspace2.gif",daemonAddress = None, daemonHost = None,testnet = False,cold = True,cmd = "./monero-wallet-cli",camera_choice = None,light = False, *args, **kwargs):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
@@ -483,6 +483,7 @@ class Coldsign(ttk.Frame):
             self.cold_transfer_button.grid(row=1,column=1,sticky = tk.E,padx = (50,10),pady=(25,0))
 
     def do_cold_sign(self):
+        self.app.cancel = False
         self.app.outputs_payload = Payload("exoutp",app=self.app,signal_app = True)
         self.app.scanner.add_child(self.app.outputs_payload)
         self.app.preview_request()
@@ -490,7 +491,11 @@ class Coldsign(ttk.Frame):
 
     def recv_qr_outputs(self,payload):
         if not self.app.cancel:
-            outputs_path = "imported_outputs.lunlumo"
+            try:
+               t = time.gmtime()
+               outputs_path = "imported_outputs_%s%s%s%s%s.lunlumo"% (t[0],t[7],t[3],t[4],t[5])
+            except:
+               outputs_path = "imported_outputs.lunlumo"
             if payload.toFile(outputs_path):
                 self.app.wallet.import_outputs(outputs_path)
                 self._root().after(10,self.do_export_key_images)
@@ -502,8 +507,12 @@ class Coldsign(ttk.Frame):
             self.app.showerror("Stopped Automation","Importing Outputs cancelled upstream.")
 
     def do_export_key_images(self,):
-        if not self.app.cancel:
-            key_images_path = "exported_key_images.lunlumo"
+        if not self.app.cancel:            
+            try:
+               t = time.gmtime()
+               key_images_path =  "exported_key_images_%s%s%s%s%s.lunlumo"% (t[0],t[7],t[3],t[4],t[5])
+            except:
+               key_images_path = "exported_key_images.lunlumo"
             self.app.wallet.export_key_images(key_images_path)
             if not self.app.cancel:
                 self.app.sender = SendTop(self.app,self._root(),payloadType="keyimgs",payloadPath = key_images_path)
@@ -722,7 +731,11 @@ class SendPane(ttk.Frame):
             self.app.wallet.transfer(tx_string)
         else:
             self.app.current_transfer_cmd = tx_string
-            outputs_file = "exported_outputs.lunlumo"
+            try:
+               t = time.gmtime()
+               outputs_file = "exported_outputs_%s%s%s%s%s.lunlumo"% (t[0],t[7],t[3],t[4],t[5])
+            except:
+               outputs_file = "exported_outputs.lunlumo"            
             self.app.wallet.export_outputs(outputsFileName = outputs_file)
             self.app.sender = SendTop(self.app,self._root(),payloadType="exoutp",payloadPath = outputs_file,)
             self.app.key_images_payload = Payload("keyimgs",app=self.app,signal_app = True)
@@ -732,7 +745,11 @@ class SendPane(ttk.Frame):
 
     def recv_qr_key_images(self,payload):
         if not self.app.cancel:
-            key_images_path = "imported_key_images.lunlumo"
+            try:
+               t = time.gmtime()
+               key_images_path =  "imported_key_images_%s%s%s%s%s.lunlumo"% (t[0],t[7],t[3],t[4],t[5])
+            except:
+               key_images_path = "imported_key_images.lunlumo"
             if payload.toFile(key_images_path):
                 self.app.wallet.import_key_images(key_images_path)
                 self._root().after(10,self.make_unsigned_tx)
@@ -1114,24 +1131,25 @@ class MyWidget(ttk.Frame):
 
 ################
 class Preview(tk.Toplevel):
-    def __init__(self,app,parent,delay = 450*3,title="Scanner",*args,**kargs):
+    def __init__(self,app,parent,delay = 450,title="Scanner",*args,**kargs):
         tk.Toplevel.__init__(self,background = "black")
         self.app = app
         self.parent = parent
         self._title = title
         self.title(self._title)
         self.delay = delay
-
+        if self.app.light:
+            self.delay = self.delay*3
         self.preview_screen = tk.Label(self)
         self.preview_screen.pack()
-        self.status_display = tk.Label(self,text = "waiting for codes")
+        self.status_display = tk.Label(self,text = "waiting for codes",background = "black",foreground = "white")
         self.status_display.pack()
-        self.status2 = tk.Label(self,text = "waiting for codes",wraplength = 250)
+        self.status2 = tk.Label(self,text = "waiting for status",wraplength = 250,background = "black",foreground = "white")
         self.status2.pack()
         self.protocol("WM_DELETE_WINDOW", self.kill)
 
         w, h = self._root().winfo_screenwidth(), self._root().winfo_screenheight()
-        self.geometry("256x%d+%d+%d" % (int(256*480/640+20),int(0),int(h-256*480/640+20)))
+        self.geometry("+%d+%d" % (int(0),int(h-256*480/640-170)))
         #self.lift()
         self.showme()
         self._root().after(self.delay,self.get_preview)
@@ -1142,11 +1160,26 @@ class Preview(tk.Toplevel):
             print("making thumb label")
             self.img = ImageTk.PhotoImage(thumb)
             self.preview_screen.config(image = self.img)
-            try:
-                stat = [i+1 for i,v in enumerate(self.app.scanner.children[0].bin) if v ==0]
-                self.status2.configure(text=repr(stat))
+            s = ""
+            try:           
+                for child in self.app.scanner.children:            
+                    try:
+                        name = child.crc
+                        stat = repr([i+1 for i,v in enumerate(child.bin) if v ==0])
+                    except Exception as e:
+                        #print(str(e))
+                        stat = ""
+                        name = ""
+                    else:
+                        s += " " + name + ": " + stat + ","
             except Exception as e:
                 print(str(e))
+             
+            else:
+                if s:
+                    self.status2.configure(text="missing: %s"% s)
+                else:
+                    self.status2.configure(text="<waiting for status>")
         self._root().after(self.delay,self.get_preview)
         self.attributes('-topmost', 1)
 
@@ -1769,7 +1802,7 @@ if __name__ == "__main__":
         mystyle.configure("pass.TEntry", foreground="gray55", background="gray55",insertofftime=5000)
         root.option_add("*TCombobox*Listbox*selectBackground", "#D15101")
         try:
-            App = Lunlumo(root,root,cmd = sys.argv[1],**login.final)
+            App = Lunlumo(root,root,settings = settings,cmd = sys.argv[1],**login.final)
         except Exception as e:
             print(str(e))
             MessageBox.showerror("Wallet Error",str(e))
