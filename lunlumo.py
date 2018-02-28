@@ -36,9 +36,10 @@ else:
 ## lunlumo libraries
 import wallet_expect as wex
 from scanner import Payload
+import pyqrcode # external but copy comes with lunlumo
 
 ## external libraries
-import pyqrcode
+
 import zlib
 from PIL import Image, ImageTk
 ##
@@ -49,6 +50,7 @@ import base64
 import argparse
 import hashlib
 import math
+import time
 import os
 import os.path
 import re
@@ -62,7 +64,7 @@ import webbrowser as web
 # 48Zuamrb7P5NiBHrSN4ua3JXRZyPt6XTzWLawzK9QKjTVfsc2bUr1UmYJ44sisanuCJzjBAccozckVuTLnHG24ce42Qyak6
 
 class Lunlumo(ttk.Frame):
-    def __init__(self,app, parent,settings = settings,walletFile = None, password = '',background ="misc/genericspace2.gif",daemonAddress = None, daemonHost = None,testnet = False,cold = True,cmd = "./monero-wallet-cli",camera_choice = None,light = False, *args, **kwargs):
+    def __init__(self,app, parent,settings = {},walletFile = None, password = '',background ="misc/genericspace2.gif",daemonAddress = None, daemonHost = None,testnet = False,cold = True,cmd = "./monero-wallet-cli",camera_choice = None,light = False, *args, **kwargs):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
@@ -70,11 +72,16 @@ class Lunlumo(ttk.Frame):
         self.cancel = False
         self.cold = cold
         self.light = light
+        self.settings = settings
         self.background = background
         if "monero-wallet-cli" in os.path.basename(cmd):
             self.coin = "monero"
+            self.address_length = 95
+            self.logo_path = "misc/reddit_user_philkode_made_this.gif"
         elif "aeon-wallet-cli" in os.path.basename(cmd):
             self.coin = "aeon"
+            self.address_length = 97
+            self.logo_path = "misc/aeon_logo.gif"
         else:
             raise Exception("Unknown coin %s" % os.path.basename(cmd))
 
@@ -178,7 +185,7 @@ class Lunlumo(ttk.Frame):
 
     def monitor_incoming(self,payload,when_finished,*args,**kwargs):
         if not payload.got_all():
-            self._root().after(self.scanner.delay_ms,self.monitor_incoming,payload,when_finished,*args,**kwargs)
+            self._root().after(2000,self.monitor_incoming,payload,when_finished,*args,**kwargs)
         else:
             self.scanner.children.remove(payload)
             self._root().after(50,when_finished,payload,*args,**kwargs)
@@ -189,6 +196,12 @@ class Lunlumo(ttk.Frame):
         except Exception as e:
             print(str(e))
         self.sender = None
+    def save_settings(self):
+        try:
+            with open(".settings","w") as s:
+                json.dump(self.settings,s)
+        except Exception as e:
+            print("WARNING: unable to save settings:\n" + str(e))
 
 class Sidebar(ttk.Frame):
     def __init__(self,app, parent, delay = 40000,background = "misc/genericspace3.gif", *args, **kwargs):
@@ -204,7 +217,7 @@ class Sidebar(ttk.Frame):
 
             self.bglabel = tk.Label(self, image=self.bg3)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
-        self.logo = tk.PhotoImage(file = "misc/reddit_user_philkode_made_this.gif")
+        self.logo = tk.PhotoImage(file = self.app.logo_path)
         self.showLogo = ttk.Label(self,image= self.logo)
         self.balFrame =  tk.Frame(self,highlightcolor = "white",highlightbackground = "white",highlightthickness=3,background ="black",)#"#4C4C4C")
         if background and not self.app.light:
@@ -399,7 +412,7 @@ class Destination(ttk.Frame):
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
         self.heading = ttk.Label(self,text = "Address",style = "app.TLabel")
-        self.dest_address = tk.Text(self,bg = "white",height = 2,width = 48,insertbackground ="#D15101",selectbackground = "#D15101" )
+        self.dest_address = tk.Text(self,bg = "white",height = 2,width = int(self.app.address_length/2)+1,insertbackground ="#D15101",selectbackground = "#D15101" )
         self.amount = MyWidget(self.app,self,handle = self.name + "Amount",choices = "entry",)
         self.address_book_select = MyWidget(self.app, self,handle = select_handle,cwidth = cwidth,choices=self.localmenu,startVal = self.start,cmd = self.cmd)
 
@@ -450,7 +463,7 @@ class Destination(ttk.Frame):
         dest = self.dest_address.get("1.0",tk.END).strip()
         amount = self.amount.get()[0]
         try:
-            if len(dest) == 95:
+            if len(dest) == self.app.address_length:
                 if float(amount) and float(amount) > 0.000000:
                     return dest + " " + amount
         except ValueError as e:
@@ -507,7 +520,7 @@ class Coldsign(ttk.Frame):
             self.app.showerror("Stopped Automation","Importing Outputs cancelled upstream.")
 
     def do_export_key_images(self,):
-        if not self.app.cancel:            
+        if not self.app.cancel:
             try:
                t = time.gmtime()
                key_images_path =  "exported_key_images_%s%s%s%s%s.lunlumo"% (t[0],t[7],t[3],t[4],t[5])
@@ -527,11 +540,11 @@ class Coldsign(ttk.Frame):
 
     def recv_qr_unsigned_tx(self,payload):
         if not self.app.cancel:
-            unsigned_tx_path = "unsigned_%s_tx" % self.app.coin
+            unsigned_tx_path = "unsigned_%s_tx" % "monero" #self.app.coin # TODO u/stoffu when aeon change file name?
             if payload.toFile(unsigned_tx_path):
                 self.app.wallet.sign_transfer()
                 if not self.app.cancel:
-                    signed_tx_path = "signed_%s_tx" % self.app.coin
+                    signed_tx_path = "signed_%s_tx" % "monero" #self.app.coin # TODO u/stoffu when aeon change file name?
                     self.app.sender = SendTop(self.app,self._root(),payloadType="sigdtx",payloadPath = signed_tx_path)
                     # TODO u/jollymort : should we re-sync outputs/keyimages here?
                 else:
@@ -567,7 +580,10 @@ class Receive(ttk.Frame):
         self.dest.amount.value.config(textvariable = self.amountVar)
         self.new_label = MyWidget(self.app,self,handle = "New Subaddress",ewidth=23,choices = "entry",startVal = "<label goes here>")
         self.moon3 = tk.PhotoImage(file = "misc/moonbutton3.gif")
-        self.new_button = tk.Button(self,text = "New Sub.",command =self.new_subaddress,image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
+        if "monero" not in sys.argv[1]:
+            self.new_button = tk.Button(self,text = "New Sub.",command =self.new_subaddress,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#2D89A0" )
+        else:
+            self.new_button = tk.Button(self,text = "New Sub.",command =self.new_subaddress,image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
         #self.amount = MyWidget(self.app,self.body.interior,handle = "Amount",choices = "entry",optional = True,activeStart=False)
         #self.amount.value.configure(textvariable = self.amountVar)
         self.amountVar.trace("w", lambda name, index, mode, sv=self.amountVar: self.amountCallback(sv))
@@ -582,7 +598,7 @@ class Receive(ttk.Frame):
         self.new_button.grid(row=2,column=1,sticky = tk.W,padx = (0,10),pady=(25,0))
         #self.textAddress.grid(row=1,column=0,columnspan = 2,sticky = tk.W)
         #self.amount.grid(row=2,column=1,sticky = tk.E,pady= (10,0))
-        self.qr.grid(row=3,column=0,sticky = tk.W+tk.E,padx=(40,0),pady= (15,10),columnspan = 2)
+        self.qr.grid(row=3,column=0,sticky = tk.W+tk.E,padx=(140,0),pady= (15,80),columnspan = 3)
 
     def new_subaddress(self):
         label = self.new_label.get()[0]
@@ -670,7 +686,10 @@ class SendPane(ttk.Frame):
         self.payment_id_entry = tk.Text(self.extra,bg = "white",height = 2,width = 33,insertbackground ="#D15101",selectbackground = "#D15101" )
         self.priority = MyWidget(self.app,self.extra,handle = "Priority",choices = ["unimportant","normal","elevated","priority"],startVal = "unimportant")
         self.privacy = MyWidget(self.app,self.extra,handle = "Privacy",choices = [str(i) for i in range(5,51)],startVal = 5)
-        self.send_button = tk.Button(self.extra,text = "send",command =self.get,image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
+        if "monero" not in sys.argv[1]:
+            self.send_button = tk.Button(self.extra,text = "send",command =self.get,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#2D89A0" )
+        else:
+            self.send_button = tk.Button(self.extra,text = "send",command =self.get,image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
 
         self.payid_title.grid(row=0,column=1,columnspan=2,sticky = tk.W,)
         self.payment_id_entry.grid(row=1,column=1,columnspan=2,sticky = tk.E)
@@ -727,7 +746,7 @@ class SendPane(ttk.Frame):
                 return
             tx_string += " " + pay_id
         print("Transfer cmd:\n",repr(tx_string))
-        if not "Opened watch-only wallet:" in self.app.wallet.boot:
+        if not "Opened watch-only wallet:" in self.app.wallet.boot or not self.app.scanner:
             self.app.wallet.transfer(tx_string)
         else:
             self.app.current_transfer_cmd = tx_string
@@ -735,7 +754,7 @@ class SendPane(ttk.Frame):
                t = time.gmtime()
                outputs_file = "exported_outputs_%s%s%s%s%s.lunlumo"% (t[0],t[7],t[3],t[4],t[5])
             except:
-               outputs_file = "exported_outputs.lunlumo"            
+               outputs_file = "exported_outputs.lunlumo"
             self.app.wallet.export_outputs(outputsFileName = outputs_file)
             self.app.sender = SendTop(self.app,self._root(),payloadType="exoutp",payloadPath = outputs_file,)
             self.app.key_images_payload = Payload("keyimgs",app=self.app,signal_app = True)
@@ -764,7 +783,7 @@ class SendPane(ttk.Frame):
         if not self.app.cancel:
             self.app.wallet.transfer(self.app.current_transfer_cmd)
             self.app.current_transfer_cmd = ""
-            self.app.sender = SendTop(self.app,self._root(),payloadType="unsgtx",payloadPath = "unsigned_monero_tx",)  # TODO
+            self.app.sender = SendTop(self.app,self._root(),payloadType="unsgtx",payloadPath = "unsigned_monero_tx",)  # TODO when will aeon change file name? u/stoffu
             self.app.signed_tx_payload = Payload("sigdtx",app=self.app,signal_app = True)
             self.app.scanner.add_child(self.app.signed_tx_payload)
             self._root().after(10,self.app.monitor_incoming,self.app.signed_tx_payload,self.recv_qr_signed_tx)
@@ -773,7 +792,7 @@ class SendPane(ttk.Frame):
 
     def recv_qr_signed_tx(self,payload):
         if not self.app.cancel:
-            signed_tx_path = "signed_%s_tx" % self.app.coin
+            signed_tx_path = "signed_%s_tx" % "monero" #self.app.coin # TODO u/stoffu when aeon change file name?
             if payload.toFile(signed_tx_path):
                 self.app.wallet.submit_transfer()
                 #self._root().after(10,self.make_unsigned_tx)
@@ -829,7 +848,10 @@ class Donate(SendPane):
         self.payment_id_entry = tk.Text(self,bg = "white",height = 2,width = 33,insertbackground ="#D15101",selectbackground = "#D15101" )
         self.priority = MyWidget(self.app,self,handle = "Priority",choices = ["unimportant","normal","elevated","priority"],startVal = "unimportant")
         self.privacy = MyWidget(self.app,self,handle = "Privacy",choices = [str(i) for i in range(5,51)],startVal = 5)
-        self.send_button = tk.Button(self,text = "send",command =self.get,image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
+        if "monero" not in sys.argv[1]:
+            self.send_button = tk.Button(self,text = "send",command =self.get,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#2D89A0" )
+        else:
+            self.send_button = tk.Button(self,text = "send",command =self.get,image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
         self.amountVar = tk.StringVar()
         self.mydest.amount.value.config(textvariable = self.amountVar)
         self.amountVar.trace("w", lambda name, index, mode, sv=self.amountVar: self.amountCallback(sv))
@@ -900,7 +922,10 @@ class FilePicker(ttk.Frame):
             self.displayVar.set(os.path.basename(start))
         self.select = ttk.Label(self,textvariable = self.displayVar,wraplength=210,style = "app.TLabel")
         #self.button = ttk.Button(self,text = buttonName,style = "app.TButton",command =self.dialog )
-        self.button = tk.Button(self,text = "select",command =self.dialog,image = self.moon2,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
+        if "monero" not in sys.argv[1]:
+            self.button = tk.Button(self,text = "select",command =self.dialog,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#2D89A0" )
+        else:
+            self.button = tk.Button(self,text = "select",command =self.dialog,image = self.moon2,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
         self.title.grid(row = 0,column = 0,padx=(5,0))
         self.button.grid(row = 0,column = 1,padx=6,pady = 6)
         self.select.grid(row = 1,column = 0,sticky = tk.W,columnspan = 3,padx=(5,0),pady=(0,3))
@@ -942,14 +967,21 @@ class Login(ttk.Frame):
             self.bglabel = tk.Label(self, image=self.bg)
             self.bglabel.place(x=0, y=0, relwidth=1, relheight=1)
 
-        self.logo = tk.PhotoImage(file = "misc/reddit_user_philkode_made_this.gif")
+        if "monero-wallet-cli" in os.path.basename(sys.argv[1]):
+            self.logo = tk.PhotoImage(file = "misc/reddit_user_philkode_made_this.gif")
+        else:
+            self.logo = tk.PhotoImage(file = "misc/aeon_logo.gif")
+
         self.showLogo = ttk.Label(self,image= self.logo,style = "app.TLabel",cursor = "shuttle")
         #heading = ttk.Label(first,text= "Wallet Options",style = "app.TLabel")
         self.walletFile = FilePicker(self.app,self,"wallet file",askPass = True,start = settings["wallet"]["wallet_file"],background = "misc/genericspace.gif",ftypes = [("full","*.keys"),("watchonly","*.keys-watchonly")],idir=os.path.dirname(sys.argv[1]))
 
 
         self.testnet = MyWidget(self,self,handle = "testnet",optional = 1,activeStart=settings["wallet"]["testnet"])
-        self.launch = tk.Button(self,text = "launch!",command =self.launch,cursor = "shuttle",image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
+        if "monero" not in sys.argv[1]:
+            self.launch = tk.Button(self,text = "launch!",command =self.launch,cursor = "shuttle",highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#2D89A0" )
+        else:
+            self.launch = tk.Button(self,text = "launch!",command =self.launch,cursor = "shuttle",image = self.moon3,compound = tk.CENTER,height = 18,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#900100" )
         #MyWidget(app, parent,handle,choices=None,subs = {},allowEntry = False,optional = False,activeStart=1,ewidth = 8,cwidth = None, cmd = None)
         dstart = None
         try:
@@ -1157,12 +1189,12 @@ class Preview(tk.Toplevel):
     def get_preview(self):
         thumb = self.app.scanner.snapshot()
         if thumb:
-            print("making thumb label")
+            #print("making thumb label")
             self.img = ImageTk.PhotoImage(thumb)
             self.preview_screen.config(image = self.img)
             s = ""
-            try:           
-                for child in self.app.scanner.children:            
+            try:
+                for child in self.app.scanner.children:
                     try:
                         name = child.crc
                         stat = repr([i+1 for i,v in enumerate(child.bin) if v ==0])
@@ -1174,7 +1206,7 @@ class Preview(tk.Toplevel):
                         s += " " + name + ": " + stat + ","
             except Exception as e:
                 print(str(e))
-             
+
             else:
                 if s:
                     self.status2.configure(text="missing: %s"% s)
@@ -1265,15 +1297,24 @@ class SendFrame(tk.Frame):
         #global slides
         self.app = app
         self.checksum = crc(payloadPath)
-        self.skip = []
+        self.status_pattern = re.compile("client_status" + r",(?P<crc>[a-z0-9]{8}),(?P<rank>[0-9]{1,5})/(?P<total>[0-9]{1,5}):(?P<payload>\S+)")
+        self.skip = set([])
         self.parent = parent
-        self.delay = delay
-        self.PAGE_SIZE = PAGE_SIZE
         self.payloadType = payloadType
         self.payloadPath = payloadPath
-        self.qrScale = qrScale
-        self.qrBackground = qrBackground
-        self.qrForeground = qrForeground
+        try:
+            self.PAGE_SIZE = self.app.settings["sendqr"]["PAGE_SIZE"]
+            self.qrScale = self.app.settings["sendqr"]["qrScale"]
+            self.qrBackground = self.app.settings["sendqr"]["qrBackground"]
+            self.qrForeground = self.app.settings["sendqr"]["qrForeground"]
+            self.delay = self.app.settings["sendqr"]["delay"]
+        except Exception as e:
+            print("WARNING: unable to understand .settings for qr stream generation:\n" + str(e))
+            self.PAGE_SIZE = PAGE_SIZE
+            self.qrScale = qrScale
+            self.qrBackground = qrBackground
+            self.qrForeground = qrForeground
+            self.delay = delay
         ##################################
         # settings
         self.moon = tk.PhotoImage(file = "misc/moonbutton1.gif")
@@ -1307,7 +1348,7 @@ class SendFrame(tk.Frame):
             self.payload = base64.b64encode(source.read())
 
         self.numQR = ceil(len(self.payload)/self.PAGE_SIZE)
-        if self.numQR >= 1000:
+        if self.numQR >= 10000:
             raise Exception("%s QRs!! file really got out of hand, exiting"% self.numQR)
 
         self.ind = 0
@@ -1326,16 +1367,66 @@ class SendFrame(tk.Frame):
         self.settings.grid(row=2,column = 0,sticky=tk.NW,padx = (0,30))
 
         self.current.grid(row=0,column = 3,rowspan =9,sticky=tk.W)
-
+    def digest(self,codes):
+        for code in codes:
+            try:
+                match = self.status_pattern.fullmatch(code)
+                if match:
+                    if match.group("crc") == self.checksum:
+                        self.skip = eval(match.group("payload")) | self.skip
+            except:
+                pass
     def reset(self):
-        self.delay = int(self.delayEntry.get()[0])
-        self.PAGE_SIZE = int(self.bytesEntry.get()[0])
-        self.qrScale = int(self.scaleEntry.get()[0])
-        self.qrBackground = self.bgEntry.get()[0]
-        self.qrForeground = self.fgEntry.get()[0]
+        try:
+            self.delay = int(self.delayEntry.get()[0])
+            self.PAGE_SIZE = int(self.bytesEntry.get()[0])
+            self.qrScale = int(self.scaleEntry.get()[0])
+            self.qrBackground = self.bgEntry.get()[0]
+            self.qrForeground = self.fgEntry.get()[0]
+            if self.delay < 150:
+                raise Exception("Failed settings check: delay < 150")
+            if self.PAGE_SIZE < 10 or self.PAGE_SIZE > 2000:
+                raise Exception("Failed settings check: self.PAGE_SIZE < 10 or self.PAGE_SIZE > 2000")
+            if self.qrScale < 3 or self.qrScale > 20:
+                raise Exception("Failed settings check: self.qrScale < 3 or self.qrScale > 20")
+            if not self.qrBackground in self.get_colors():
+                print(repr(self.get_colors()))
+                raise Exception("Failed settings check: invalid color %s"% self.qrBackground)
+            if not self.qrForeground in self.get_colors():
+                print(repr(self.get_colors()))
+                raise Exception("Failed settings check: invalid color %s"% self.qrForeground)
+        except Exception as e:
+            self.PAGE_SIZE = self.app.settings["sendqr"]["PAGE_SIZE"]
+            self.qrScale = self.app.settings["sendqr"]["qrScale"]
+            self.qrBackground = self.app.settings["sendqr"]["qrBackground"]
+            self.qrForeground = self.app.settings["sendqr"]["qrForeground"]
+            self.delay = self.app.settings["sendqr"]["delay"]
 
+            self.bytesEntry.value.delete(0, tk.END)
+            self.bytesEntry.value.insert(0,self.PAGE_SIZE)
+            self.scaleEntry.value.set(self.qrScale)
+            self.bgEntry.value.set(self.qrBackground)
+            self.fgEntry.value.set(self.qrForeground)
+            self.delayEntry.value.delete(0, tk.END)
+            self.delayEntry.value.insert(0,self.delay)
+            #self.lift()
+            self.parent.attributes('-topmost', 0)
+            self.parent.lower()
+            self.app.showerror("Settings Error:",str(e))
+            self._root().after(100,self.parent.showme)
+            return
+
+        try:
+            self.app.settings["sendqr"]["PAGE_SIZE"] = self.PAGE_SIZE
+            self.app.settings["sendqr"]["qrScale"] = self.qrScale
+            self.app.settings["sendqr"]["qrBackground"] = self.qrBackground
+            self.app.settings["sendqr"]["qrForeground"] = self.qrForeground
+            self.app.settings["sendqr"]["delay"] = self.delay
+            self.app.save_settings()
+        except Exception as e:
+            print("WARNING: unable to save qr stream generation settings:\n" + str(e))
         self.numQR = ceil(len(self.payload)/self.PAGE_SIZE)
-        if self.numQR >= 1000:
+        if self.numQR >= 10000:
             raise Exception("%s QRs!! file really got out of hand, exiting"% self.numQR)
         self.slides = []
         self.skip = []
@@ -1366,26 +1457,104 @@ class SendFrame(tk.Frame):
     def idle_refresh(self,something = None):
         self._root().after_idle(self.refresh)
     def refresh(self):
-        print("refresh :" ,self.ind)
+        #print("refresh :" ,self.ind)
         if self.slides:
             while self.ind in self.skip:
-                print("skipping :",self.ind)
+                #print("skipping :",self.ind)
                 self.ind += 1
             try:
                 slide = self.slides[self.ind]
                 self.ticker.configure(text = "%s / %s" % (self.ind+1,self.numQR))
-                print("showing :",self.ind)
+                #print("showing :",self.ind)
                 self.current.configure(image=slide)
             except IndexError:
                 self.ind = 0
-                print("indexError :",self.ind)
+                #print("indexError :",self.ind)
             else:
                 self.ind += 1
             if self.ind >= self.numQR:
-                print("end reached :",self.ind)
+                #print("end reached :",self.ind)
                 self.ind =0
 
         self._root().after(self.delay, self.idle_refresh,)
+    def get_colors(self):
+        s = ['snow', 'ghost white', 'white smoke', 'gainsboro', 'floral white', 'old lace',
+          'linen', 'antique white', 'papaya whip', 'blanched almond', 'bisque', 'peach puff',
+          'navajo white', 'lemon chiffon', 'mint cream', 'azure', 'alice blue', 'lavender',
+          'lavender blush', 'misty rose', 'dark slate gray', 'dim gray', 'slate gray',
+          'light slate gray', 'gray', 'light grey', 'midnight blue', 'navy', 'cornflower blue', 'dark slate blue',
+          'slate blue', 'medium slate blue', 'light slate blue', 'medium blue', 'royal blue',  'blue',
+          'dodger blue', 'deep sky blue', 'sky blue', 'light sky blue', 'steel blue', 'light steel blue',
+          'light blue', 'powder blue', 'pale turquoise', 'dark turquoise', 'medium turquoise', 'turquoise',
+          'cyan', 'light cyan', 'cadet blue', 'medium aquamarine', 'aquamarine', 'dark green', 'dark olive green',
+          'dark sea green', 'sea green', 'medium sea green', 'light sea green', 'pale green', 'spring green',
+          'lawn green', 'medium spring green', 'green yellow', 'lime green', 'yellow green',
+          'forest green', 'olive drab', 'dark khaki', 'khaki', 'pale goldenrod', 'light goldenrod yellow',
+          'light yellow', 'yellow', 'gold', 'light goldenrod', 'goldenrod', 'dark goldenrod', 'rosy brown',
+          'indian red', 'saddle brown', 'sandy brown',
+          'dark salmon', 'salmon', 'light salmon', 'orange', 'dark orange',
+          'coral', 'light coral', 'tomato', 'orange red', 'red', 'hot pink', 'deep pink', 'pink', 'light pink',
+          'pale violet red', 'maroon', 'medium violet red', 'violet red',
+          'medium orchid', 'dark orchid', 'dark violet', 'blue violet', 'purple', 'medium purple',
+          'thistle', 'snow2', 'snow3',
+          'snow4', 'seashell2', 'seashell3', 'seashell4', 'AntiqueWhite1', 'AntiqueWhite2',
+          'AntiqueWhite3', 'AntiqueWhite4', 'bisque2', 'bisque3', 'bisque4', 'PeachPuff2',
+          'PeachPuff3', 'PeachPuff4', 'NavajoWhite2', 'NavajoWhite3', 'NavajoWhite4',
+          'LemonChiffon2', 'LemonChiffon3', 'LemonChiffon4', 'cornsilk2', 'cornsilk3',
+          'cornsilk4', 'ivory2', 'ivory3', 'ivory4', 'honeydew2', 'honeydew3', 'honeydew4',
+          'LavenderBlush2', 'LavenderBlush3', 'LavenderBlush4', 'MistyRose2', 'MistyRose3',
+          'MistyRose4', 'azure2', 'azure3', 'azure4', 'SlateBlue1', 'SlateBlue2', 'SlateBlue3',
+          'SlateBlue4', 'RoyalBlue1', 'RoyalBlue2', 'RoyalBlue3', 'RoyalBlue4', 'blue2', 'blue4',
+          'DodgerBlue2', 'DodgerBlue3', 'DodgerBlue4', 'SteelBlue1', 'SteelBlue2',
+          'SteelBlue3', 'SteelBlue4', 'DeepSkyBlue2', 'DeepSkyBlue3', 'DeepSkyBlue4',
+          'SkyBlue1', 'SkyBlue2', 'SkyBlue3', 'SkyBlue4', 'LightSkyBlue1', 'LightSkyBlue2',
+          'LightSkyBlue3', 'LightSkyBlue4', 'SlateGray1', 'SlateGray2', 'SlateGray3',
+          'SlateGray4', 'LightSteelBlue1', 'LightSteelBlue2', 'LightSteelBlue3',
+          'LightSteelBlue4', 'LightBlue1', 'LightBlue2', 'LightBlue3', 'LightBlue4',
+          'LightCyan2', 'LightCyan3', 'LightCyan4', 'PaleTurquoise1', 'PaleTurquoise2',
+          'PaleTurquoise3', 'PaleTurquoise4', 'CadetBlue1', 'CadetBlue2', 'CadetBlue3',
+          'CadetBlue4', 'turquoise1', 'turquoise2', 'turquoise3', 'turquoise4', 'cyan2', 'cyan3',
+          'cyan4', 'DarkSlateGray1', 'DarkSlateGray2', 'DarkSlateGray3', 'DarkSlateGray4',
+          'aquamarine2', 'aquamarine4', 'DarkSeaGreen1', 'DarkSeaGreen2', 'DarkSeaGreen3',
+          'DarkSeaGreen4', 'SeaGreen1', 'SeaGreen2', 'SeaGreen3', 'PaleGreen1', 'PaleGreen2',
+          'PaleGreen3', 'PaleGreen4', 'SpringGreen2', 'SpringGreen3', 'SpringGreen4',
+          'green2', 'green3', 'green4', 'chartreuse2', 'chartreuse3', 'chartreuse4',
+          'OliveDrab1', 'OliveDrab2', 'OliveDrab4', 'DarkOliveGreen1', 'DarkOliveGreen2',
+          'DarkOliveGreen3', 'DarkOliveGreen4', 'khaki1', 'khaki2', 'khaki3', 'khaki4',
+          'LightGoldenrod1', 'LightGoldenrod2', 'LightGoldenrod3', 'LightGoldenrod4',
+          'LightYellow2', 'LightYellow3', 'LightYellow4', 'yellow2', 'yellow3', 'yellow4',
+          'gold2', 'gold3', 'gold4', 'goldenrod1', 'goldenrod2', 'goldenrod3', 'goldenrod4',
+          'DarkGoldenrod1', 'DarkGoldenrod2', 'DarkGoldenrod3', 'DarkGoldenrod4',
+          'RosyBrown1', 'RosyBrown2', 'RosyBrown3', 'RosyBrown4', 'IndianRed1', 'IndianRed2',
+          'IndianRed3', 'IndianRed4', 'sienna1', 'sienna2', 'sienna3', 'sienna4', 'burlywood1',
+          'burlywood2', 'burlywood3', 'burlywood4', 'wheat1', 'wheat2', 'wheat3', 'wheat4', 'tan1',
+          'tan2', 'tan4', 'chocolate1', 'chocolate2', 'chocolate3', 'firebrick1', 'firebrick2',
+          'firebrick3', 'firebrick4', 'brown1', 'brown2', 'brown3', 'brown4', 'salmon1', 'salmon2',
+          'salmon3', 'salmon4', 'LightSalmon2', 'LightSalmon3', 'LightSalmon4', 'orange2',
+          'orange3', 'orange4', 'DarkOrange1', 'DarkOrange2', 'DarkOrange3', 'DarkOrange4',
+          'coral1', 'coral2', 'coral3', 'coral4', 'tomato2', 'tomato3', 'tomato4', 'OrangeRed2',
+          'OrangeRed3', 'OrangeRed4', 'red2', 'red3', 'red4', 'DeepPink2', 'DeepPink3', 'DeepPink4',
+          'HotPink1', 'HotPink2', 'HotPink3', 'HotPink4', 'pink1', 'pink2', 'pink3', 'pink4',
+          'LightPink1', 'LightPink2', 'LightPink3', 'LightPink4', 'PaleVioletRed1',
+          'PaleVioletRed2', 'PaleVioletRed3', 'PaleVioletRed4', 'maroon1', 'maroon2',
+          'maroon3', 'maroon4', 'VioletRed1', 'VioletRed2', 'VioletRed3', 'VioletRed4',
+          'magenta2', 'magenta3', 'magenta4', 'orchid1', 'orchid2', 'orchid3', 'orchid4', 'plum1',
+          'plum2', 'plum3', 'plum4', 'MediumOrchid1', 'MediumOrchid2', 'MediumOrchid3',
+          'MediumOrchid4', 'DarkOrchid1', 'DarkOrchid2', 'DarkOrchid3', 'DarkOrchid4',
+          'purple1', 'purple2', 'purple3', 'purple4', 'MediumPurple1', 'MediumPurple2',
+          'MediumPurple3', 'MediumPurple4', 'thistle1', 'thistle2', 'thistle3', 'thistle4',
+          'gray1', 'gray2', 'gray3', 'gray4', 'gray5', 'gray6', 'gray7', 'gray8', 'gray9', 'gray10',
+          'gray11', 'gray12', 'gray13', 'gray14', 'gray15', 'gray16', 'gray17', 'gray18', 'gray19',
+          'gray20', 'gray21', 'gray22', 'gray23', 'gray24', 'gray25', 'gray26', 'gray27', 'gray28',
+          'gray29', 'gray30', 'gray31', 'gray32', 'gray33', 'gray34', 'gray35', 'gray36', 'gray37',
+          'gray38', 'gray39', 'gray40', 'gray42', 'gray43', 'gray44', 'gray45', 'gray46', 'gray47',
+          'gray48', 'gray49', 'gray50', 'gray51', 'gray52', 'gray53', 'gray54', 'gray55', 'gray56',
+          'gray57', 'gray58', 'gray59', 'gray60', 'gray61', 'gray62', 'gray63', 'gray64', 'gray65',
+          'gray66', 'gray67', 'gray68', 'gray69', 'gray70', 'gray71', 'gray72', 'gray73', 'gray74',
+          'gray75', 'gray76', 'gray77', 'gray78', 'gray79', 'gray80', 'gray81', 'gray82', 'gray83',
+          'gray84', 'gray85', 'gray86', 'gray87', 'gray88', 'gray89', 'gray90', 'gray91', 'gray92',
+          'gray93', 'gray94', 'gray95', 'gray97', 'gray98', 'gray99']
+        return s
 
 """
 # here be dragons
@@ -1773,7 +1942,12 @@ if __name__ == "__main__":
     mystyle.configure("app.TCombobox", background="#F2681C",font=('Liberation Mono','12','normal'))#,selectbackground = "#D15101",fieldbackground = "#D15101")
     mystyle.configure("app.TEntry", foreground="black", background="gray55",font=('Liberation Mono','12','normal'))
     mystyle.configure("pass.TEntry", foreground="gray55", background="gray55",insertofftime=5000)
+
     first.option_add("*TCombobox*Listbox*selectBackground", "#D15101")
+    if "aeon" in sys.argv[1]:
+        mystyle.configure("app.TButton", foreground="gray55", background="blue",activeforeground ="light blue")#F2681C
+        mystyle.configure("app.TCombobox", background="#2D89A0",font=('Liberation Mono','12','normal'))
+        first.option_add("*TCombobox*Listbox*selectBackground", "blue")
     login = Login(first,first,settings = settings,background = "misc/genericspace.gif")
     login.pack()
 
@@ -1801,6 +1975,10 @@ if __name__ == "__main__":
         mystyle.configure("app.TEntry", foreground="black", background="gray55")
         mystyle.configure("pass.TEntry", foreground="gray55", background="gray55",insertofftime=5000)
         root.option_add("*TCombobox*Listbox*selectBackground", "#D15101")
+        if "aeon" in sys.argv[1]:
+            mystyle.configure("app.TButton", foreground="gray55", background="blue",activeforeground ="light blue")#F2681C
+            mystyle.configure("app.TCombobox", background="#2D89A0",font=('Liberation Mono','12','normal'))
+            root.option_add("*TCombobox*Listbox*selectBackground", "blue")
         try:
             App = Lunlumo(root,root,settings = settings,cmd = sys.argv[1],**login.final)
         except Exception as e:

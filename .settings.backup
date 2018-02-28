@@ -1,0 +1,23 @@
+
+{
+   "app": {
+      "camera": "None",
+      "light": false
+   },
+   "sendqr": {
+      "qrScale": 8,
+      "PAGE_SIZE": 700,
+      "qrBackground": "gray62",
+      "delay": 850,
+      "qrForeground": "gray1"
+   },
+   "wallet": {
+      "wallet_file": null,
+      "testnet": true,
+      "daemon": "None, (cold wallet)",
+      "host[:port]":{
+          "testnet":"testnet.xmrchain.net",
+          "mainnet":"node.moneroworld.com:18089"
+      }
+   }
+}

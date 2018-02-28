@@ -274,7 +274,7 @@ class Wallet(object):
             # saves unsigned_monero_tx to cwd
         if not "Unsigned transaction(s) successfully written to file:" in info and not "Transaction successfully submitted" in info:
             self.haltAndCatchFire('Wallet Error! unexpected result from "transfer": %s' % ( info))
-        elif "Transaction successfully submitted" in info and self.gui:
+        elif self.gui:
             self.gui.showinfo(info)
         self.busy = False
         return info
@@ -407,15 +407,22 @@ class Wallet(object):
                     second = "<no tag>\r\nTag's description: \r\n" + i.split("Untagged accounts:")[1]
                     self.debug("potential untagged",second,3)
                     useful2.append(second)
+            if self.coin == "aeon":
+                useful2 = [info]
             useful3 = {}
             for subset in useful2:
                 self.debug("subset",subset,3)
                 t_match = self.patterns["accounts_tag"].search(subset)
-                if t_match is None:
+                if t_match is None and not self.coin =="aeon":
                     continue
                 self.debug("t_match",t_match,3)
-                tag = t_match.group("tag")
+                if t_match:
+                    tag = t_match.group("tag")
+                else:
+                    tag = ""
                 u_accounts = re.findall(self.patterns["accounts_individual"],subset)
+                self.debug("whole accounts",u_accounts,3)
+                #print("whole accounts",repr(u_accounts))
                 for a in u_accounts:
                     match = self.patterns["accounts_parts"].search(a)
                     a_index = match.group("index")
@@ -427,7 +434,8 @@ class Wallet(object):
                     a_menu =  a_index + " " + a_address
                     if a_label:
                         a_menu += " " + a_label[:18]
-                    a_menu +=  " " + "(" + tag + ")"
+                    if tag:
+                        a_menu +=  " " + "(" + tag + ")"
                     '''
                     a_menu = ""
                     if a_label:
@@ -565,14 +573,14 @@ class Wallet(object):
             i = self.child.expect([pexpect.TIMEOUT, WALLET_IMPOSTER_PROMPT ,faster,WALLET_PASSWORD_PROMPT,WALLET_ISOKAY_PROMPT,pexpect.EOF], timeout = timeout)
             if i == 0: # Timeout: this is where we might think we're actually done
                 #self.haltAndCatchFire('TIMEOUT ERROR! Wallet did not return within TIMEOUT limit %s' % self.TIMEOUT)
-                self.debug("imposter timeout: %s"%cmd,self.child.before,4)
+                self.debug("expected timeout: %s"%cmd,self.child.before,4)
                 self.hack_buffer += self.child.before
                 self.child.sendline("get_to_the_prompt")
-                self.debug("hack","get_to_the_prompt",4)
+                self.debug("prompt getter","get_to_the_prompt",4)
                 k = self.child.expect([pexpect.TIMEOUT, "unknown command: get_to_the_prompt"], timeout = 2)
                 if k == 0:
-                    self.debug("HACK timeout: %s"%cmd,self.child.before,4)
-                    self.haltAndCatchFire('TIMEOUT ERROR! Wallet cmd hack did not return within TIMEOUT limit')
+                    self.debug("prompt timeout: %s"%cmd,self.child.before,4)
+                    self.haltAndCatchFire('TIMEOUT ERROR! Wallet cmd did not return within TIMEOUT limit')
                     break
                 elif k == 1:
                     self.ready = True
@@ -615,7 +623,7 @@ class Wallet(object):
                 self.debug("broke, got nothing: %s"%cmd,self.child.before,0)
                 break
 
-        self.debug("Final Hack Buffer: %s"%cmd,self.hack_buffer,3)
+        self.debug("Final info Buffer: %s"%cmd,self.hack_buffer,3)
         self.filterBuffer = ""
         #final = self.hack_buffer.replace("\x1b[0m","").replace("\x1b[1;31m","").replace("\x1b[1;37m","").replace("\x1b[1;33m","").strip()
         final = re.sub(WALLET_ALL_PROMPT,'',self.hack_buffer)

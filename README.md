@@ -8,21 +8,24 @@ email: nasawelder@protonmail.com
 ## Current Features
 
 * Full Monero GUI for desktop Linux and Raspberry Pi (armv7)
-* Automated Cold signing via QR code steam + webcam between Hot(watch-only wallet) and air-gapped (full wallet) machines
+* Automated Cold signing via QR code stream + webcam between Hot(watch-only wallet) and air-gapped (full wallet) machines
 * Send / Receive normally via daemon connection with Hot full wallet
 * Account Switching
 * Subaddress selection and generation
-* Comes with a Python wallet-cli wrapper library that can be used standalone for your other needs
+* Comes with a python wallet-cli wrapper library that can be used standalone for your other needs (API not stable yet, but certainly useable)
 
 ## Roadmap
 
-* Multisig cold-generation and cold-signing
+* Multisig cold-generation and cold-signing automation
 * Wallet meta-data transfer and backup (saving/transferring address book and subaddress info separately from keys for transfer/backup/merge)
 * Integration with android / iOS apps
-* Bundle all dependencies with source for easier
+* arbitrary file transfer via QR in a standalone library
+* Formal API for cli-wrapper library
+* Bundle all dependencies with source for easier trust verification.
+
 
 ## Dependencies
-lunlumo wraps the monero-wallet-cli. You must download the offical binaries from www.getmonero.org.
+lunlumo wraps the monero-wallet-cli. You must download the offical binaries from www.getmonero.org
 Note: The goal is to eventually provide all dependencies via this github account for simpler trust verification.
 
 The following assumes Ubuntu Mate:
@@ -52,6 +55,7 @@ The GUI can be used standalone, on an internet connected computer for normal tra
 
 ##### Tested Webcams
 * Logitech c170 ($20)
+* Dell integrated webcam from 6 year old laptop
 
 ## Download
     git clone <this repository>
