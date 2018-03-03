@@ -255,7 +255,7 @@ class Sidebar(ttk.Frame):
         else:
             self.go_coldsign = tk.Button(self,text = "cold sig",command = self.go_coldsign_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "skyblue1",image = self.bgv,compound = tk.CENTER,cursor = "exchange")
         self.go_receive = tk.Button(self,text = "receive",command = self.go_receive_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "green",image = self.bg2,compound = tk.CENTER,cursor = "plus")
-        self.go_extras = tk.Button(self,text = "extras",command = self.go_send_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "blue",image = self.bg3,compound = tk.CENTER,cursor = "trek",state="disabled")
+        self.go_extras = tk.Button(self,text = "extras",command = self.go_extras_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "blue",image = self.bg3,compound = tk.CENTER,cursor = "trek",)
         self.go_donate = tk.Button(self,text = "donate",command = self.go_donate_event,height = 25,width = 60,highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 5,bg = "orange",image = self.bgv,compound = tk.CENTER,cursor = "heart")
 
 
@@ -277,6 +277,8 @@ class Sidebar(ttk.Frame):
         self.app.coldsignpage.lift()
     def go_receive_event(self):
         self.app.receivepage.lift()
+    def go_extras_event(self):
+         MessageBox.showinfo("Coming Soon","Extra Features under development, see github / Monero FFS")
     def go_donate_event(self):
         self.app.donatepage.lift()
 
@@ -1944,7 +1946,7 @@ if __name__ == "__main__":
 
     #first.option_add('*TCombobox*Listbox.font', ('Liberation Mono','8','normal'))
     #first.option_add('*TCombobox*Entry.font', ('Liberation Mono','8','normal'))
-    first.title("lunlumo (login)")
+    first.title("lunlumo (pre-release)")
     mystyle = ttk.Style()
     mystyle.theme_use('clam') #('clam', 'alt', 'default', 'classic')
     mystyle.configure("app.TLabel", foreground="white", background="black", font=('Liberation Mono','10','normal')) #"#4C4C4C")
@@ -1970,7 +1972,7 @@ if __name__ == "__main__":
     if login.final:
         root = tk.Tk()
         #root.geometry("%dx%d%+d%+d" % (800, 500, 300, 150))  #(width, height, xoffset, yoffset)
-        root.title("lunlumo")
+        root.title("lunlumo (pre-release)")
         mystyle = ttk.Style()
         bgr = tk.PhotoImage(file = "misc/genericspace2.gif")
         bglabelr = tk.Label(root, image=bgr)

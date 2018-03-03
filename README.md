@@ -1,5 +1,5 @@
 # lunlumo
-A python3 GUI for Monero that will support automated cold transaction signing via QR code streams. Since it's python, no need to use compiled code!
+A python3 GUI for Monero that with automated cold transaction signing via QR code streams.
 
 by u/NASA_Welder
 
@@ -18,6 +18,8 @@ email: nasawelder@protonmail.com
 
 * Multisig cold-generation and cold-signing automation
 * Wallet meta-data transfer and backup (saving/transferring address book and subaddress info separately from keys for transfer/backup/merge)
+* GUI features added for monero cli functions
+* Scan address via QR code. (Just hadn't gotten to this, yet)
 * Integration with android / iOS apps
 * arbitrary file transfer via QR in a standalone library
 * Formal API for cli-wrapper library
@@ -29,7 +31,7 @@ lunlumo wraps the monero-wallet-cli. You must download the offical binaries from
 Note: The goal is to eventually provide all dependencies via this github account for simpler trust verification.
 
 The following assumes Ubuntu Mate:
-
+* sudo apt-get install python3-tk       # this comes standard on some distributions, including ubuntu mate for raspi.
 * sudo -H pip3 install Pillow --upgrade # >= 3.4
 * sudo apt-get install libzbar0 libzbar-dev
 * sudo -H pip3 install setuptools --upgrade
