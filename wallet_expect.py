@@ -483,7 +483,7 @@ class Wallet(object):
             cmd = "address"
             if address_all:
                 cmd += " all"
-            info = self.walletCmdHack(cmd,verbose=verbose,timeout = 2)
+            info = self.walletCmdHack(cmd,verbose=verbose,timeout = 5)
         else:
             info = self.walletCmd("address",verbose=verbose)
         self.debug("address info",info,2)

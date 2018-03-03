@@ -85,7 +85,7 @@ class Lunlumo(ttk.Frame):
         else:
             raise Exception("Unknown coin %s" % os.path.basename(cmd))
 
-        self.wallet = wex.Wallet(walletFile, password,daemonAddress, daemonHost,testnet,self.cold,gui=self,postHydra = True,debug = 33,cmd = cmd,coin = self.coin)
+        self.wallet = wex.Wallet(walletFile, password,daemonAddress, daemonHost,testnet,self.cold,gui=self,postHydra = True,debug = 0,cmd = cmd,coin = self.coin)
 
         if camera_choice == "webcam (v4l)":
             from scanner import Scanner_pygame
@@ -104,6 +104,7 @@ class Lunlumo(ttk.Frame):
         self.account_menu = ["0 %s Primary account (loading tag)" % self.initAddress[:6]]
         self.primary_account = self.account_menu[0]
         self.earliestBalance = 1000
+        self.save_settings()
         if True: #self.light:   #light mode solved by removing imagesfrom backgrounds...
             self.full_start()
         else:
@@ -144,15 +145,15 @@ class Lunlumo(ttk.Frame):
             raise
 
 
-        self._root().after(3000,self.receivepage.idle_refresh)
-        self._root().after(4000,self.statusbar.idle_refresh,False)
+        self._root().after(2000,self.receivepage.idle_refresh)
+        self._root().after(3000,self.statusbar.idle_refresh,False)
 
         if not self.cold:
-            self._root().after(2500,self.sidebar.refresh_account,True,None)
+            self._root().after(1500,self.sidebar.refresh_account,True,None)
             self._root().after(25000,self.sendpage.idle_refresh)
         else:
 
-            self._root().after(2500,self.sidebar.refresh_account)
+            self._root().after(1500,self.sidebar.refresh_account,True,None)
         #self._root().after(10000,self.preview_request)
 
 
@@ -199,9 +200,10 @@ class Lunlumo(ttk.Frame):
     def save_settings(self):
         try:
             with open(".settings","w") as s:
-                json.dump(self.settings,s)
+                json.dump(self.settings,s,indent=3)
         except Exception as e:
             print("WARNING: unable to save settings:\n" + str(e))
+            raise
 
 class Sidebar(ttk.Frame):
     def __init__(self,app, parent, delay = 40000,background = "misc/genericspace3.gif", *args, **kwargs):
@@ -299,12 +301,12 @@ class Sidebar(ttk.Frame):
         else:
             result = self.app.wallet.account()
             self.app.account_help = (result[1],result[2])
-        print("account help",(self.app.account_help))
+        #print("account help",(self.app.account_help))
         self.app.account_dict = self.app.account_help[0]
-        print("account dict",(self.app.account_dict))
+        #print("account dict",(self.app.account_dict))
         for menu in list(self.app.account_dict.keys()):
-            print("account menu",(menu))
-            print("account index",self.app.account_dict[menu]["index"])
+            #print("account menu",(menu))
+            #print("account index",self.app.account_dict[menu]["index"])
             if int(self.app.account_dict[menu]["index"]) == 0:
                 self.app.primary_account = menu
 
@@ -745,7 +747,7 @@ class SendPane(ttk.Frame):
                 MessageBox.showerror("Transaction Error","Invalid Payment ID\n\n%s\n\nMust be 64 chars and alphanumeric" % pay_id)
                 return
             tx_string += " " + pay_id
-        print("Transfer cmd:\n",repr(tx_string))
+        #print("Transfer cmd:\n",repr(tx_string))
         if not "Opened watch-only wallet:" in self.app.wallet.boot or not self.app.scanner:
             self.app.wallet.transfer(tx_string)
         else:
@@ -957,6 +959,7 @@ class Login(ttk.Frame):
         ttk.Frame.__init__(self, parent,style = "app.TFrame", *args, **kwargs)
         self.app = app
         self.parent = parent
+        self.settings = settings
         self.final = None
         self.light = False
         self.moon1 = tk.PhotoImage(file = "misc/moonbutton1.gif")
@@ -974,10 +977,10 @@ class Login(ttk.Frame):
 
         self.showLogo = ttk.Label(self,image= self.logo,style = "app.TLabel",cursor = "shuttle")
         #heading = ttk.Label(first,text= "Wallet Options",style = "app.TLabel")
-        self.walletFile = FilePicker(self.app,self,"wallet file",askPass = True,start = settings["wallet"]["wallet_file"],background = "misc/genericspace.gif",ftypes = [("full","*.keys"),("watchonly","*.keys-watchonly")],idir=os.path.dirname(sys.argv[1]))
+        self.walletFile = FilePicker(self.app,self,"wallet file",askPass = True,start = self.settings["wallet"]["wallet_file"],background = "misc/genericspace.gif",ftypes = [("full","*.keys"),("watchonly","*.keys-watchonly")],idir=os.path.dirname(sys.argv[1]))
 
 
-        self.testnet = MyWidget(self,self,handle = "testnet",optional = 1,activeStart=settings["wallet"]["testnet"])
+        self.testnet = MyWidget(self,self,handle = "testnet",optional = 1,activeStart=self.settings["wallet"]["testnet"])
         if "monero" not in sys.argv[1]:
             self.launch = tk.Button(self,text = "launch!",command =self.launch,cursor = "shuttle",highlightthickness=0,font=('Liberation Mono','12','normal'),foreground = "white",bd = 3,bg = "#2D89A0" )
         else:
@@ -986,16 +989,16 @@ class Login(ttk.Frame):
         dstart = None
         try:
             if settings["wallet"]["testnet"]:
-                dstart = settings["wallet"]["host[:port]"]["testnet"]
+                dstart = self.settings["wallet"]["host[:port]"]["testnet"]
             else:
-                dstart = settings["wallet"]["host[:port]"]["mainnet"]
+                dstart = self.settings["wallet"]["host[:port]"]["mainnet"]
         except Exception as e:
             print("WARNING: did not understand settings['wallet']['host[:port]'] choice:\n%s"% str(e))
-        self.daemon = MyWidget(self,self,handle = "daemon",startVal = settings["wallet"]["daemon"],allowEntry = False,cwidth = 18,cipadx = 1,
+        self.daemon = MyWidget(self,self,handle = "daemon",startVal = self.settings["wallet"]["daemon"],allowEntry = False,cwidth = 18,cipadx = 1,
                                 choices = ["None (cold wallet)","local, already running","other, host[:port]",],
                                subs={"other, host[:port]":{"handle":"host[:port]","choices":"entry","ewidth":20,"startVal": dstart,"allowEntry":False},}) # allow Entry not applicable
         #self.daemon.findSubs()
-        self.camera_choice = MyWidget(self,self,handle = "camera",startVal = settings["app"]["camera"],allowEntry = False,cwidth = 18,cipadx = 1,
+        self.camera_choice = MyWidget(self,self,handle = "camera",startVal = self.settings["app"]["camera"],allowEntry = False,cwidth = 18,cipadx = 1,
                                 choices = ["None","webcam (v4l)","raspi cam",])
 
         self.showLogo.grid(row=0,column=0,rowspan=1,columnspan=2,sticky = tk.E)
@@ -1009,15 +1012,25 @@ class Login(ttk.Frame):
     def launch(self):
         wallet = self.walletFile.get()
         vals = {"walletFile": wallet[0],"password": wallet[1],"camera_choice":self.camera_choice.get()[0],"testnet":bool(self.testnet.get()),}
-        print("login",repr(vals))
+        self.settings["wallet"].update({"wallet_file":vals["walletFile"]})
+
+        self.settings["app"].update({"camera":vals["camera_choice"]})
         daemon = self.daemon.get()
         if daemon[0] == "None (cold wallet)":
             vals.update({"cold":True})
+            self.settings["wallet"].update({"daemon":"None (cold wallet)"})
         elif  daemon[0] == "local, already running":
             vals.update({"cold":False})
+            self.settings["wallet"].update({"daemon":"local, already running"})
         elif daemon[0] == "other, host[:port]":
             both = daemon[1].split(":")
             host = daemon[1].split(":")[0]
+            self.settings["wallet"].update({"daemon":"other, host[:port]"})
+
+            if vals["testnet"]:
+                self.settings["wallet"]["host[:port]"].update({"testnet":daemon[1]})
+            else:
+                self.settings["wallet"]["host[:port]"].update({"mainnet":daemon[1]})
             if len(both)==1:
                 vals.update({"daemonHost":daemon[1]})
                 vals.update({"cold":False})
@@ -1126,7 +1139,7 @@ class MyWidget(ttk.Frame):
             else:
                 return None
         else:
-            print("someone tried to get:%s" %self.handle)
+            print("tried to get:%s" %self.handle)
             return #[self.value.get()]
 
     def findSubs(self,event = None,not_init = True):
@@ -1980,7 +1993,7 @@ if __name__ == "__main__":
             mystyle.configure("app.TCombobox", background="#2D89A0",font=('Liberation Mono','12','normal'))
             root.option_add("*TCombobox*Listbox*selectBackground", "blue")
         try:
-            App = Lunlumo(root,root,settings = settings,cmd = sys.argv[1],**login.final)
+            App = Lunlumo(root,root,settings = login.settings,cmd = sys.argv[1],**login.final)
         except Exception as e:
             print(str(e))
             MessageBox.showerror("Wallet Error",str(e))
