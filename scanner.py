@@ -153,7 +153,7 @@ else:
 
         def start(self,):
             if self.camera is None:
-                self.camera = pygame.camera.Camera(self.clist[0], self.resolution)
+                self.camera = pygame.camera.Camera(self.clist[-1], self.resolution)
                 self.camera.start()
                 time.sleep(1)
 
@@ -226,7 +226,7 @@ class Payload(object):
         self.msgType = msgType
         self.app = app
         self.signal_app = signal_app
-        self.pattern = re.compile(self.msgType + r",(?P<crc>[a-z0-9]{8}),(?P<rank>[0-9]{1,5})/(?P<total>[0-9]{1,5}):(?P<payload>\S+)")
+        self.pattern = re.compile(self.msgType + r",(?P<crc>[a-z0-9]{7,10}),(?P<rank>[0-9]{1,5})/(?P<total>[0-9]{1,5}):(?P<payload>\S+)")
         self.bin = []
         self.total = None
 
@@ -248,7 +248,10 @@ class Payload(object):
                 match = self.pattern.fullmatch(code)
                 if match:
                     if self.app and self.signal_app:
-                        self.app.payload_started()
+                        try:
+                            self.app.payload_started()
+                        except Exception as e:
+                            print(str(e))
                     self.total = match.group("total")
                     self.bin = [0 for i in range(int(self.total))]
                     self.crc = match.group("crc")
@@ -256,6 +259,8 @@ class Payload(object):
                     self._use(match)
                     self.pattern = re.compile(self.msgType + "," + self.crc + r",(?P<rank>[0-9]{1,5})/(?P<total>[0-9]{1,5}):(?P<payload>\S+)")
                     break
+                else:
+                    print("got unexpected QR: %s" % code)
 
         else:
             for code in codes:

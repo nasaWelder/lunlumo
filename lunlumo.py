@@ -145,12 +145,12 @@ class Lunlumo(ttk.Frame):
             raise
 
 
-        self._root().after(2000,self.receivepage.idle_refresh)
-        self._root().after(3000,self.statusbar.idle_refresh,False)
+        self._root().after(1000,self.receivepage.idle_refresh)
+        self._root().after(2000,self.statusbar.idle_refresh,False)
 
         if not self.cold:
-            self._root().after(1500,self.sidebar.refresh_account,True,None)
-            self._root().after(25000,self.sendpage.idle_refresh)
+            self._root().after(3000,self.sidebar.refresh_account,True,None)
+            self._root().after(4000,self.sendpage.idle_refresh)
         else:
 
             self._root().after(1500,self.sidebar.refresh_account,True,None)
@@ -197,6 +197,7 @@ class Lunlumo(ttk.Frame):
         except Exception as e:
             print(str(e))
         self.sender = None
+
     def save_settings(self):
         try:
             with open(".settings","w") as s:
@@ -751,7 +752,9 @@ class SendPane(ttk.Frame):
             tx_string += " " + pay_id
         #print("Transfer cmd:\n",repr(tx_string))
         if not "Opened watch-only wallet:" in self.app.wallet.boot or not self.app.scanner:
-            self.app.wallet.transfer(tx_string)
+            info = self.app.wallet.transfer(tx_string)
+            if not "Transaction successfully submitted" in info:
+                self.app.showinfo(info)
         else:
             self.app.current_transfer_cmd = tx_string
             try:
@@ -787,10 +790,13 @@ class SendPane(ttk.Frame):
         if not self.app.cancel:
             self.app.wallet.transfer(self.app.current_transfer_cmd)
             self.app.current_transfer_cmd = ""
-            self.app.sender = SendTop(self.app,self._root(),payloadType="unsgtx",payloadPath = "unsigned_monero_tx",)  # TODO when will aeon change file name? u/stoffu
-            self.app.signed_tx_payload = Payload("sigdtx",app=self.app,signal_app = True)
-            self.app.scanner.add_child(self.app.signed_tx_payload)
-            self._root().after(10,self.app.monitor_incoming,self.app.signed_tx_payload,self.recv_qr_signed_tx)
+            if not self.app.cancel:
+                self.app.sender = SendTop(self.app,self._root(),payloadType="unsgtx",payloadPath = "unsigned_monero_tx",)  # TODO when will aeon change file name? u/stoffu
+                self.app.signed_tx_payload = Payload("sigdtx",app=self.app,signal_app = True)
+                self.app.scanner.add_child(self.app.signed_tx_payload)
+                self._root().after(10,self.app.monitor_incoming,self.app.signed_tx_payload,self.recv_qr_signed_tx)
+            else:
+                self.app.showerror("Stopped Automation","Sending unsigned_tx cancelled upstream.")
         else:
             self.app.showerror("Stopped Automation","Making unsigned_tx cancelled upstream.")
 
@@ -1303,7 +1309,17 @@ class SendTop(tk.Toplevel):
 
         #self.attributes('-fullscreen', True)
     def close(self):
-        print("SendTop '%s' closed by WM_DELETE_WINDOW" % self._title)
+        self.app.cancel = True
+        self.attributes('-topmost', 0)
+        self.lower()
+        try:
+            self.app.preview_cancel()
+            self.app.scanner.children = []
+        except Exception as e:
+            self.app.showerror("Cancelation Error",str(e))
+        else:
+            self.app.showerror("Canceled","Automation procedure canceled by user")
+        #print("SendTop '%s' closed by WM_DELETE_WINDOW" % self._title)
         self._root().after(10,self.destroy)
 
 class SendFrame(tk.Frame):
@@ -1334,7 +1350,7 @@ class SendFrame(tk.Frame):
         # settings
         self.moon = tk.PhotoImage(file = "misc/moonbutton1.gif")
         self.settings = tk.Frame(self,background = "black")
-        self.title = ttk.Label(self,text = "sending: %s" % (os.path.basename(payloadPath)),style = "app.TLabel")
+        self.title = ttk.Label(self,text = "sending: %s" % (os.path.basename(payloadPath)),style = "app.TLabel",wraplength = 200)
         self.crclbl = ttk.Label(self,text = "crc32: %s" % self.checksum,style = "app.TLabel")
         self.ticker = ttk.Label(self,text = "X / X",style = "app.TLabel")
 

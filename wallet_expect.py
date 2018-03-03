@@ -274,12 +274,13 @@ class Wallet(object):
             # saves unsigned_monero_tx to cwd
         if not "Unsigned transaction(s) successfully written to file:" in info and not "Transaction successfully submitted" in info:
             self.haltAndCatchFire('Wallet Error! unexpected result from "transfer": %s' % ( info))
-        elif self.gui:
+        elif "Transaction successfully submitted" in info and self.gui:
             self.gui.showinfo(info)
         self.busy = False
         return info
 
     def sign_transfer(self,autoConfirm = 0, verbose = True):
+        self.busy = True
         # looks for unsigned_monero_tx in cwd
         if self.postHydra:
             info = self.walletCmdHack("sign_transfer",verbose=verbose,timeout = 45,faster = r"successfully[^\\]+")
@@ -291,6 +292,7 @@ class Wallet(object):
             self.haltAndCatchFire('Wallet Error! unexpected result in sign_transfer: %s' % (info))
         #elif self.gui:
             #self.gui.showinfo(info)
+        self.busy = True
         return info
 
     def submit_transfer(self,autoConfirm = 0, verbose = True):
