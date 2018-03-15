@@ -1,0 +1,22 @@
+{
+   "sendqr": {
+      "delay": 600,
+      "PAGE_SIZE": 250,
+      "qrBackground": "gray62",
+      "qrScale": 12,
+      "qrForeground": "gray1"
+   },
+   "wallet": {
+      "daemon": "other, host[:port]",
+      "wallet_file": null,
+      "testnet": true,
+      "host[:port]": {
+         "testnet": "testnet.xmrchain.net",
+         "mainnet": "node.moneroworld.com:18089"
+      }
+   },
+   "app": {
+      "camera": "webcam (v4l)",
+      "light": false
+   }
+}

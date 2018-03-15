@@ -1,0 +1,49 @@
+
+---------------------View-Only HOT-----------------------------------------------
+[wallet 9wXvk8]: export_outputs new_exported_outputs
+Wallet password:
+Outputs exported to new_exported_outputs
+[wallet 9wXvk8]:
+---------------------COLD--------------------------------------------
+[wallet 9wXvk8 (no daemon)]: import_outputs new_exported_outputs
+4 outputs imported
+[wallet 9wXvk8 (no daemon)]: export_key_images new_exported_key_images
+Wallet password:
+Signed key images exported to new_exported_key_images
+[wallet 9wXvk8 (no daemon)]:
+---------------------View-Only HOT-----------------------------------------------
+[wallet 9wXvk8]: import_key_images new_exported_key_images
+Height 1102394, txid <e47949ac2bb4ca6a4d283a48c4e81353dc795d907cf8deb50079bf576b884730>, spent 44.000000000000, idx 0/0
+Signed key images imported to height 1102401, 44.000000000000 spent, 193.995945430000 unspent
+[wallet 9wXvk8]: transfer unimportant A16nFcW5XuU6Hm2owV4g277yWjjY6cVZy5YgE15HS6C8JujtUUP51jP7pBECqk78QW8K78yNx9LB4iB8jY3vL8vw3JhiQuX .55
+Wallet password:
+No payment id is included with this transaction. Is this okay?  (Y/Yes/N/No): y
+
+Transaction 1/1:
+Spending from address index 0
+Sending 0.550000000000.  The transaction fee is 0.004051190000
+Is this okay?  (Y/Yes/N/No): y
+Unsigned transaction(s) successfully written to file: unsigned_monero_tx
+[wallet 9wXvk8]:
+---------------------COLD--------------------------------------------
+[wallet 9wXvk8 (no daemon)]: sign_transfer
+Wallet password:
+Loaded 1 transactions, for 41.595945430000, fee 0.004051190000, sending 0.550000000000 to A16nFcW5XuU6Hm2owV4g277yWjjY6cVZy5YgE15HS6C8JujtUUP51jP7pBECqk78QW8K78yNx9LB4iB8jY3vL8vw3JhiQuX, 41.041894240000 change to 9wXvk8HShzSdsAcwXVVs7r7kBz7tGj3UoP4LPFb7XGrZhCzCJkzDu5PSbKKiRxBuDE6yTF8Lpp2i54eWHfGvR1BRDLEsy4b, with min ring size 5, no payment ID. 4 outputs to import. Is this okay? (Y/Yes/N/No): y
+Transaction successfully signed to file signed_monero_tx, txid dea02fb138bb0983bbc8ace31634483ad2d2f145196dc8a0882814ad6acec813
+[wallet 9wXvk8 (no daemon)]:
+---------------------View-Only HOT-----------------------------------------------
+[wallet 9wXvk8]: submit_transfer
+Loaded 1 transactions, for 41.595945430000, fee 0.004051190000, sending 0.550000000000 to A16nFcW5XuU6Hm2owV4g277yWjjY6cVZy5YgE15HS6C8JujtUUP51jP7pBECqk78QW8K78yNx9LB4iB8jY3vL8vw3JhiQuX, 41.041894240000 change to 9wXvk8HShzSdsAcwXVVs7r7kBz7tGj3UoP4LPFb7XGrZhCzCJkzDu5PSbKKiRxBuDE6yTF8Lpp2i54eWHfGvR1BRDLEsy4b, with min ring size 5, no payment ID. 4 key images to import. Is this okay? (Y/Yes/N/No): y
+Transaction successfully submitted, transaction <dea02fb138bb0983bbc8ace31634483ad2d2f145196dc8a0882814ad6acec813>
+You can check its status by using the `show_transfers` command.
+Height 1102817, txid <dea02fb138bb0983bbc8ace31634483ad2d2f145196dc8a0882814ad6acec813>, 41.041894240000, idx 0/0
+[wallet 9wXvk8]:
+
+
+
+
+
+
+
+
+

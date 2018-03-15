@@ -1328,7 +1328,7 @@ class SendFrame(tk.Frame):
         #global slides
         self.app = app
         self.checksum = crc(payloadPath)
-        self.status_pattern = re.compile("client_status" + r",(?P<crc>[a-z0-9]{8}),(?P<rank>[0-9]{1,5})/(?P<total>[0-9]{1,5}):(?P<payload>\S+)")
+        self.status_pattern = re.compile("client_status" + r",(?P<crc>[a-z0-9]{7,10}),(?P<rank>[0-9]{1,5})/(?P<total>[0-9]{1,5}):(?P<payload>\S+)")
         self.skip = set([])
         self.parent = parent
         self.payloadType = payloadType
