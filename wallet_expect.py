@@ -409,13 +409,13 @@ class Wallet(object):
                     second = "<no tag>\r\nTag's description: \r\n" + i.split("Untagged accounts:")[1]
                     self.debug("potential untagged",second,3)
                     useful2.append(second)
-            if self.coin == "aeon":
-                useful2 = [info]
+            #if self.coin == "aeon":
+                #useful2 = [info]
             useful3 = {}
             for subset in useful2:
                 self.debug("subset",subset,3)
                 t_match = self.patterns["accounts_tag"].search(subset)
-                if t_match is None and not self.coin =="aeon":
+                if t_match is None:# and not self.coin =="aeon":
                     continue
                 self.debug("t_match",t_match,3)
                 if t_match:

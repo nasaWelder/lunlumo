@@ -81,11 +81,11 @@ class Lunlumo(ttk.Frame):
         elif "aeon-wallet-cli" in os.path.basename(cmd):
             self.coin = "aeon"
             self.address_length = 97
-            self.logo_path = "misc/aeon_logo.gif"
+            self.logo_path = "misc/aeon_logo2.gif"
         else:
             raise Exception("Unknown coin %s" % os.path.basename(cmd))
 
-        self.wallet = wex.Wallet(walletFile, password,daemonAddress, daemonHost,testnet,self.cold,gui=self,postHydra = True,debug = 0,cmd = cmd,coin = self.coin)
+        self.wallet = wex.Wallet(walletFile, password,daemonAddress, daemonHost,testnet,self.cold,gui=self,postHydra = True,debug = 5,cmd = cmd,coin = self.coin)
 
         if camera_choice == "webcam (v4l)":
             from scanner import Scanner_pygame
@@ -981,7 +981,7 @@ class Login(ttk.Frame):
         if "monero-wallet-cli" in os.path.basename(sys.argv[1]):
             self.logo = tk.PhotoImage(file = "misc/reddit_user_philkode_made_this.gif")
         else:
-            self.logo = tk.PhotoImage(file = "misc/aeon_logo.gif")
+            self.logo = tk.PhotoImage(file = "misc/aeon_logo2.gif")
 
         self.showLogo = ttk.Label(self,image= self.logo,style = "app.TLabel",cursor = "shuttle")
         #heading = ttk.Label(first,text= "Wallet Options",style = "app.TLabel")
