@@ -1,5 +1,5 @@
 # lunlumo
-A python3 GUI for Monero that with automated cold transaction signing via QR code streams.
+A python3 GUI for Monero with automated cold transaction signing via QR code streams.
 
 by u/NASA_Welder
 
